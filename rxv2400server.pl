@@ -94,6 +94,19 @@ my %Spec =
   }
 );
 
+## DO NOT DELETE ##
+# Hash recursion example:
+#$source = \%Spec;
+#print("source keys");
+#for $key ( keys %{$source} ) { print " ".$key; }
+#print "\n";
+#$source = $source->{"R0161"};
+#print("source keys");
+#for $key ( keys %{$source} ) { print " ".$key; }
+#print "\n";
+#exit;
+## END OF DO-NOT-DELETE ##
+
 my $PortName = "COM1";
 my $PortObj = new Win32::SerialPort ($PortName)
        || die "Can't open $PortName: $^E\n";
@@ -194,42 +207,6 @@ sub sendControl # getReport
 {
 	local($inStr) = @_;
 
-	print "Sending Control $inStr...\n";
-	print "\$yamaha{'ModelID'} $yamaha{'ModelID'}\n";
-	print "\$Spec{\$yamaha{'ModelID'}} $Spec{$yamaha{'ModelID'}}\n";
-	print "\$Spec{\$yamaha{'ModelID'}}{'Control'} $Spec{$yamaha{'ModelID'}}{'Control'}\n";
-	$source = $Spec{$yamaha{'ModelID'}}{'Control'};
-	$cdr = $inStr;
-	$packet = "";
-	$packetTail = "";
-	$count = 0;
-	while ( "" ne $cdr )
-	{
-		if ( $count > 10 ) { exit; }
-		$count++;
-		if ( defined($source{'Prefix'}) ) { $packet = $packet.$source{'Prefix'}; }
-		if ( defined($source{'Suffix'}) ) { $packetTail = $source{'Suffix'}.$packetTail; }
-		print "cdr $cdr\n";
-		$cdr =~ s/(\S+)\s*//;
-		$car = $1;
-		print "car $car cdr $cdr source source\n$packet $packetTail\n";
-		if ( "" ne $cdr )
-		{
-			print("source $source\n");
-			print("source keys");
-			for $key ( keys %$source ) { print " ".$key; }
-			print "\n";
-			print("source{$car} ".$source{$car}."\n");
-			$source = $source{$car};
-		} else {
-			print("source{$car} $source{$car}\n");
-			$packet = $packet.$source{$car}.$packetTail;
-		}
-	}
-	print "send $packet";
-	#print $yamaha{'ModelID'} $Spec{$yamaha{'ModelID'}}{'Configuration'}\n";
-	return;
-
 	# Rules
 	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
 	{
@@ -240,13 +217,45 @@ sub sendControl # getReport
 		print "error: No Control commands are allowed when the system status is not OK.\n" and exit;
 	}
 
+	$source = $Spec{$yamaha{'ModelID'}}{'Control'};
+	$cdr = $inStr;
+	$packet = "";
+	$packetTail = "";
+	$count = 0;
+	while ( "" ne $cdr )
+	{
+		if ( $count > 10 ) { exit; }
+		$count++;
+		if ( defined($source->{'Prefix'}) ) { $packet = $packet.$source->{'Prefix'}; }
+		if ( defined($source->{'Suffix'}) ) { $packetTail = $source->{'Suffix'}.$packetTail; }
+		print "cdr $cdr\n";
+		$cdr =~ s/(\S+)\s*//;
+		$car = $1;
+		print "car $car cdr $cdr source source\n$packet $packetTail\n";
+		if ( "" ne $cdr )
+		{
+			print("source $source\n");
+			print("source keys");
+			for $key ( keys %{$source} ) { print " ".$key; }
+			print "\n";
+			print("source->{$car} ".$source->{$car}."\n");
+			$source = $source->{$car};
+		} else {
+			print("source->{$car} $source->{$car}\n");
+			$packet = $packet.$source->{$car}.$packetTail;
+		}
+	}
+	print "send $packet";
+
 	print "Sending Control $inStr...\n";
-	$PortObj->write($STX."07EB".$inStr.$ETX);
+	#$PortObj->write($STX."07EB".$inStr.$ETX);
+	$PortObj->write($packet);
 	($count_in, $string_in) = $PortObj->read(275);
 	print "Got $count_in bytes back.\n";
 	$string_in = "";
 	print "\n";
 }
+
 sendInit();
 sendReady();
 #sendControl("B");
