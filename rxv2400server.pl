@@ -69,6 +69,9 @@ use IO::Socket;
 use Net::hostent;
 use Sys::Hostname;
 
+$app = $0;
+print "app $app\n";
+
 my %yamaha = ( "System" => "1", "Power" => "0" ); # Busy and Off
 
 my $STX = hex2str("02");
@@ -210,11 +213,11 @@ sub sendControl # getReport
 	# Rules
 	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
 	{
-		#print "error: Only Power and System Control commands are valid when the power is off.\n" and exit;
+		#return "error: Only Power and System Control commands are valid when the power is off.\n";
 	}
 	if ( $yamaha{'System'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'} )
 	{
-		print "error: No Control commands are allowed when the system status is not OK.\n" and exit;
+		return "error: No Control commands are allowed when the system status is not OK.\n";
 	}
 
 	$source = $Spec{$yamaha{'ModelID'}}{'Control'};
@@ -224,7 +227,7 @@ sub sendControl # getReport
 	$count = 0;
 	while ( "" ne $cdr )
 	{
-		if ( $count > 10 ) { exit; }
+		if ( $count > 100 ) { return "error: Internal search fault."; }
 		$count++;
 		if ( defined($source->{'Prefix'}) ) { $packet = $packet.$source->{'Prefix'}; }
 		if ( defined($source->{'Suffix'}) ) { $packetTail = $source->{'Suffix'}.$packetTail; }
@@ -232,6 +235,10 @@ sub sendControl # getReport
 		$cdr =~ s/(\S+)\s*//;
 		$car = $1;
 		print "car $car cdr $cdr source source\n$packet $packetTail\n";
+		if ( !defined($source->{$car}) )
+		{
+			return "error: Couldn't understand '$car' in '$inStr'";
+		}
 		if ( "" ne $cdr )
 		{
 			print("source $source\n");
@@ -254,39 +261,13 @@ sub sendControl # getReport
 	print "Got $count_in bytes back.\n";
 	$string_in = "";
 	print "\n";
+	return "OK - Received $count_in byte response.";
 }
 
 sendInit();
 sendReady();
-#sendControl("B");
-#sleep 10;
-#sendControl("E");
-sendControl("Operation Power ON");
-undef $PortObj;
-exit;
-
-print "setting variables 0 and 1 to 1...\n";
-$varMSG = "FE	00	00	FF	1C E3 00 FF 02 FD 01 FE 00 FF 1F E0";
-$varMSG = hex2str($varMSG);
-$response = str2hex (getMsg($varMSG));
-
-sleep(1);
-
-$varMSG = "FE	00	00	FF	14 EB 01 FE 02 FD 01 FE 00 FF 18 E7";
-$varMSG = hex2str($varMSG);
-$response = str2hex (getMsg($varMSG));
-
-sleep(1);
-
-print "setting power down delay to 0 (infinite)...\n";
-$powerMSG = "FE	00	00	FF	B9 46 00 FF B9 46";
-$powerMSG = hex2str($powerMSG);
-$response = str2hex (getMsg($powerMSG));
-
 
 $PORT = 9000;
-$message = "1234"; #anystring
-$messageHeader = hex2str("FE 0 0 FF");
 
 $server = IO::Socket::INET->new( Proto     => 'tcp',
                                  LocalPort => $PORT,
@@ -299,40 +280,99 @@ print "[LINX-Server waiting for commands on port $PORT]\n";
 while ($client = $server->accept()) 
 {
 	$client->autoflush(1);
+
+	# Welcome message
+	print $client "rxv2400server connection open.\n";
+	print $client "Accepting commands for $yamaha{'ModelID'}";
+	if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
+	print $client " device.\n";
+	print $client "(type 'help' for documentation)\n";
+	
     while (<$client>) 
     {
-    	next unless /\S/;       # blank line
-     	if    (/view/i)    
-     	{ 
-			$y = hex2str("71 03");
-    		$message = toMsg($y,$message);
-    		$response = str2hex (getMsg($message));
-    		print "viewchange\n";
-   		}
-     	elsif (/vor/i)    
-     	{ 
-     		$y = hex2str("71 02");
-			$message = toMsg($y,$message);
-			$response = str2hex (getMsg($message));
-			print "vor\n";
-   		}
-     	elsif (/stop/i)         
-     	{ 
-     		$y = hex2str("71 00");
-			$message = toMsg($y,$message);
-    		$response = str2hex (getMsg($message));
-    		print "stop\n";
-     	}
-     	elsif (/zruck/i)      
-     	{ 
-     		$y = hex2str("71 01");
-			$message = toMsg($y,$message);
-    		$response = str2hex (getMsg($message));
-    		print "zruck\n";
-    		
-     	}
-     	print $client "\015\012";
-     	last;
+    	next unless /\S/;       # blank line check
+
+		s/\n//;
+		s/\r//;
+		s/^\s*//;
+
+		if ( /^Control/ )
+		{
+			s/^Control\s*//;
+			$command = $_;
+			sendInit();
+			sendReady();
+			$status = sendControl($command);
+			print $status."\n";
+			print $client $status."\n";
+		} elsif ( /^bye/i ) {
+     		last;
+		} elsif ( /^reload/i ) {
+    		close $client;
+			close $server;
+			undef $PortObj;
+			exec( "\"$app\"" );
+		} elsif ( /^shutdown/i ) {
+    		close $client;
+			close $server;
+			undef $PortObj;
+			exit;
+		} elsif ( /^help/i ) {
+			s/help\s*//;
+			$help = $_;
+
+			$source = $Spec{$yamaha{'ModelID'}};
+			$cdr = $_;
+			$count = 0;
+			if ( "" eq $cdr )
+			{
+				print $client "\nWelcome to help.\n";
+				print $client "Basic commands are:\n";
+				print $client "  Control\n";
+				print $client "  bye\n";
+				print $client "  reload\n";
+				print $client "  shutdown\n";
+				print $client "  help\n";
+				print $client "\n";
+				print $client " Additional documentation on capitalized basic commands is available by typing\n";
+				print $client "help and that command name.  e.g. \"help Control\"\n";
+				print $client " Command options with an asterisk (*) following their name are sub-commands\n";
+				print $client "which have their own options which you can get help on too.  e.g. \"help Control Operation\"\n";
+			} else {
+				print $client "\nCommands that being with \"$_\" have the following options:\n";
+			}
+			while ( "" ne $cdr )
+			{
+				if ( $count > 100 ) { print $client "error: Internal search fault.\n"; $cdr = ""; next; }
+				$count++;
+				$cdr =~ s/(\S+)\s*//;
+				$car = $1;
+				if ( !defined($source->{$car}) )
+				{
+					print $client "error: Couldn't understand '$car' in '$help'\n";
+					$cdr = "";
+					next;
+				}
+				if ( "" ne $cdr )
+				{
+					$source = $source->{$car};
+				} else {
+					$options = 0;
+					for $key ( keys %{$source->{$car}} )
+					{
+						if ( "Prefix" ne $key && "Suffix" ne $key )
+						{
+							$options++;
+							print $client "  ".$key;
+							if ( defined((keys %{$source->{$car}->{$key}})[0]) ) { print $client "*"; }
+							print $client "\n";
+						}
+					}
+					if ( 0 == $options ) { print $client "  <none>\n"; }
+				}
+			}
+		}
+		print $client "\n";
     }
     close $client;
 } 
@@ -357,19 +397,6 @@ sub atoi
 	return $retVal;
 }
 
-sub getMsg 
-{
-    local($outmsg) = @_;
-	# Send the message to the RCX.
-	sendMsg($outmsg);
-}
-
-sub sendMsg 
-{
-    local($msg) = @_;
-    $PortObj->write($msg);
-}
-
 # Convert a string into hex for easier viewing by people.
 sub str2hex 
 {
@@ -386,27 +413,4 @@ sub hex2str
     local ($l) = @_;
     $l =~ s/([0-9a-f]{1,2})\s*/sprintf("%c",hex($1))/egi;
     return $l;
-}
-
-sub toMsg 
-{
-    local ($str,$lastMsg) = @_;
-    local ($msg) = "";
-    local ($sum, $c, $invC,$seqno);
-    $sum = 0;  # Checksum;
-    $msg = $messageHeader;
-    $seqno = 0x08 != (0x08 & ord(substr($lastMsg,4,1)));
-    if ( $seqno ) {
-        substr($str,0,1) = chr(ord($str) | 0x08);
-    } else {
-        substr($str,0,1) = chr(ord($str) & 0xf7);
-    }
-    foreach $c ( split(//,$str) ) {
-        $invC = chr(0xff ^ ord($c));
-        $msg .= $c . $invC;
-        $sum += ord($c);
-    }
-    $sum &= 0xff;
-    $msg .= chr($sum) . chr(0xff ^ $sum);
-    return $msg
 }
