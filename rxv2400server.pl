@@ -241,6 +241,8 @@ my $info = "";
 my $warning = "";
 my $error = "";
 
+$lastCtrl = 0;
+
 sub setupSerialPort
 {
 	$PortObj = new Win32::SerialPort ($PortName)
@@ -263,23 +265,56 @@ sub setupSerialPort
 	}
 }
 
+sub rs232_read
+{
+	my $length = $_[0];
+	my $count_in = 0;
+	my $string_in = "";
+	my $timeout = 0;
+
+	print "read $length\n";
+	($count_in, $string_in) = $PortObj->read($length);
+
+	if ( ($count_in < $length) && ($timeout < 5) )
+	{
+		$timeout++;
+		sleep(1);
+
+		print "read $length - $count_in t$timeout\n";
+		($ncount_in, $nstring_in) = $PortObj->read($length-$count_in);
+		$count_in += $ncount_in;
+		$string_in .= $nstring_in;
+	}
+
+	return ($count_in, $string_in);
+}
+
+sub rs232_flush
+{
+	print "Flushing rs232 read buffer.\n";
+	($count_in, $string_in) = $PortObj->read(275);
+	print "Got $count_in bytes back.\n";
+	$string_in = "";
+	if ( 275 == $count_in ) { rs232_flush(); }
+}
+
 sub sendInit
 {
 	print "Sending undocumented init...\n";
 	$PortObj->write("0000020100");
-	($count_in, $string_in) = $PortObj->read(275);
-	print "Got $count_in bytes back.\n";
-	$string_in = "";
+	rs232_flush();
 	print "\n";
 }
 
 $dcnfail = 0;
 sub sendReady # getConfiguration
 {
+	rs232_flush();
 	print "Sending Ready command...\n";
 	$PortObj->write("000");
-	($count_in, $response) = $PortObj->read(512);
-	print "Got $count_in bytes, reading Configuration...\n";
+
+	($count_in, $response) = rs232_read(1);
+	print "Got $count_in bytes, reading DCn...\n";
 	if ( 0 == $count_in )
 	{
 		$response = "N";
@@ -315,6 +350,9 @@ sub sendReady # getConfiguration
 		}
 	}
 	
+	($count_in, $response) = rs232_read(8);
+	print "Got $count_in bytes, reading Configuration...\n";
+	if ( $count_in < 8 ) { print "Failed to read Configuration. ($count_in)\n" and exit; }
 	print " Received Configuration...\n";
 	# 5B Model ID
 	$yamaha{'ModelID'} = substr($response,0,5);
@@ -338,10 +376,11 @@ sub sendReady # getConfiguration
 		$dcnfail++;
 		return sendReady();
 	} else {
-		while ( $dataLength > ($count_in - 12) )
+		($count_in, $response) = rs232_read($dataLength);
+		while ( $dataLength > $count_in )
 		{
 			print "warning: Ready response missing ".($dataLength - ($count_in - 12))." bytes.\n";
-			($ncount_in, $nresponse) = $PortObj->read(512);
+			($ncount_in, $nresponse) = rs232_read($dataLength-$count_in);
 			$count_in += $ncount_in;
 			$response .= $nresponse;
 			if ( $ncount_in == 0 )
@@ -353,6 +392,8 @@ sub sendReady # getConfiguration
 			}
 		}
 	}
+	print "Got $count_in bytes, reading Configuration Data...\n";
+	# Data 0 through 6 are "Don't care" per spec
 	$yamaha{'System'} = substr($response,7,1);
 	$yamaha{'Power'} = substr($response,8,1);
 	if ( $yamaha{'System'} eq "0" )
@@ -401,6 +442,8 @@ sub sendReady # getConfiguration
 		$dataLength--;
 	}
 	print "\n";
+	($count_in, $response) = rs232_read(3);
+	print "Got $count_in bytes, reading Checksum + ETX...\n";
 	# 2B checksum
 	$checksum = substr($response,0,2);
 	print "  checksum: 0x".$checksum;
@@ -420,6 +463,22 @@ sub sendReady # getConfiguration
 	}
 	print "\n";
 	$dcnfail = 0;
+}
+
+sub readReport
+{
+	print "Reading report.\n";
+	($count_in, $string_in) = rs232_read(8);
+	print "Got $count_in bytes back.\n";
+	#$string_in = "";
+	print "\n";
+	$string_in =~ s/(.)/$1 /g;
+	$string_in =~ s/$STX/STX/g;
+	$string_in =~ s/$ETX/ETX/g;
+	$retMsg = "OK - Received $count_in byte response.";
+	$retMsg = $retMsg."\n  - $string_in";
+	return $retMsg;
+	return "OK - Received $count_in byte response.";
 }
 
 sub sendControl # getReport
@@ -488,18 +547,15 @@ sub sendControl # getReport
 	print "send $packet";
 
 	print "Sending Control $inStr...\n";
+	$curCtrl = time;
+	if ( $curCtrl > ($lastCtrl + 10) )
+	{
+		sendReady();
+	}
 	$PortObj->write($packet);
-	($count_in, $string_in) = $PortObj->read(275);
-	print "Got $count_in bytes back.\n";
-	#$string_in = "";
-	print "\n";
-	$string_in =~ s/(.)/$1 /g;
-	$string_in =~ s/$STX/STX/g;
-	$string_in =~ s/$ETX/ETX/g;
-	$retMsg = "OK - Received $count_in byte response.";
-	$retMsg = $retMsg."\n  - $string_in";
-	return $retMsg;
-	return "OK - Received $count_in byte response.";
+	$lastCtrl = time;
+
+	return readReport();
 }
 
 sub writeMacroFile
@@ -559,7 +615,6 @@ sub decode
 		s/^Control\s*//;
 		$command = $_;
 		#sendInit();
-		sendReady();
 		$status = sendControl($command);
 		print $status."\n";
 		print $client $status."\n";
@@ -597,7 +652,7 @@ sub decode
             $string_in = "";
 		while ( 20 > $rcvd )
 		{
-			($count_in, $string_i) = $PortObj->read(512);
+			($count_in, $string_i) = rs232_read(512);
                 $string_in .= $string_i;
 			if ( 0 != $count_in )
 			{
@@ -787,7 +842,7 @@ $server = IO::Socket::INET->new( Proto     => 'tcp',
                                  Reuse     => 1);
 
 die "sorry, couldn't setup server" unless $server;
-print "[LINX-Server waiting for commands on port $PORT]\n";
+print "[RXV-Server 1.3.1.2 waiting for commands on port $PORT]\n";
 
 #$PortObj->write($STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
 
@@ -796,7 +851,7 @@ while ($client = $server->accept())
 	$client->autoflush(1);
 
 	# Welcome message
-	print $client "rxv2400server connection open.\n";
+	print $client "rxv2400server 1.3.1.2 connection open.\n";
 	print $client "Accepting commands for $yamaha{'ModelID'}";
 	if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
 	print $client " device.\n";
