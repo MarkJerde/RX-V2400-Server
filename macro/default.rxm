@@ -1,0 +1,70 @@
+macro wakeup
+Control Operation Zone2Power ON
+Control Operation Zone2Input DVD
+Control System Zone2Volume Set -50
+play c:\Documents and Settings\Dave\My Documents\My Music\My Playlists\Wakeup.wpl
+Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+play c:\Documents and Settings\Dave\My Documents\My Music\My Playlists\KnockOutOfBed.wpl
+sleep 2m
+Control Operation Zone2Input TUNER
+Control Operation Zone1Power ON
+Control Operation Zone1Input TUNER
+Control System Zone1Volume Set -30
+sleep 1h 30m
+Control Operation Power OFF
+end
+
+macro silence
+Control Operation Zone1Power ON
+Control Operation Zone1Input CD-R
+Control System Zone1Volume Set -50
+Control Operation Zone2Power ON
+Control Operation Zone2Input CD-R
+Control System Zone2Volume Set -50
+Control Operation Zone3Power ON
+Control Operation Zone3Input CD-R
+Control System Zone3Volume Set -50
+Control Operation Power OFF
+end
+

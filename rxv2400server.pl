@@ -31,6 +31,9 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# $Revision: 1.1 $
+# $Date: 2006/01/26 04:47:12 $
+# $RCSfile: rxv2400server.pl,v $
 
 # version 0.1 of rxv2400server.pl ##################################
 ####################################################################
@@ -46,6 +49,7 @@
 # installed on your system: ########################################
 # Win32::API available under http://www.divinf.it/dada/perl/Win32API-0.011.zip
 # Win32::SerialPort available under http://members.aol.com/Bbirthisel/Win32-SerialPort-0.18.tar.gz
+# pmm Win32-SerialPort
 ####################################################################
 ####################################################################
 # this server listens to port 9000 for the following commands:	   #
@@ -81,18 +85,142 @@ my %Spec =
 ( "R0161" =>
   { "Configuration" =>
     { "System" => { "OK" => "0" , "Busy" => "1" },
-      "Power" => { "OFF" => "0" , "ON" => "1" }
+      "Power" => { "OFF" => "0" , "ON" => "1" },
+	  "Input" => [ "PHONO" , "CD" , "TUNER" , "CD-R" , "MD/TAPE" , "DVD" , "D-TV/LD" , "CABLE/SAT" , "SAT" , "VCR1" , "VCR2/DVR" , "VCR3" , "V-AUX" ],
+      "OffOn" => [ "OFF" , "ON" ],
+      "ABCDE" => [ "A" , "B" , "C" , "D" , "E" ],
+      "InputMode" => [ "AUTO" , "DD/RF" , "DTS" , "DIGITAL" , "ANALOG" , "AAC" ],
+    },
+	"macro" =>
+    {
     },
     "Control" =>
     { "Prefix" => $STX,
       "Suffix" => $ETX,
       "Operation" =>
       { "Prefix" => "07",
-        "Power" => { "Prefix" => "A1" , "ON" => "D" , "OFF" => "E" }
+        "Zone1Volume" => { "Prefix" => "A1" , "Up" => "A" , "Down" => "B" },
+        "Zone1Mute" => { "Prefix" => "EA" , "ON" => "2" , "OFF" => "3" },
+        "Zone1Input" => { "Prefix" => "A" ,
+                          "PHONO" => "14" ,
+                          "CD" => "15" ,
+                          "TUNER" => "16" ,
+                          "CD-R" => "19" ,
+                          "MD/TAPE" => "C9" ,
+                          "DVD" => "C1" ,
+                          "D-TV/LD" => "54" ,
+                          "CABLE/SAT" => "C0" ,
+                          "SAT" => "CA" ,
+                          "VCR1" => "0F" ,
+                          "VCR2/DVR" => "13" ,
+                          "VCR3" => "C8" ,
+                          "V-AUX" => "55" },
+        "6chInput" => { "Prefix" => "EA" , "ON" => "4" , "OFF" => "5" },
+        "InputMode" => { "Prefix" => "EA" ,
+                         "AUTO" => "6" ,
+                         "DD/RF" => "7" ,
+                         "DTS" => "8" ,
+                         "DIGITAL" => "9" ,
+                         "ANALOG" => "A" ,
+                         "AAC" => "B" },
+        "Zone2Volume" => { "Prefix" => "AD" , "Up" => "A" , "Down" => "B" },
+        "Zone2Mute" => { "Prefix" => "EA" , "ON" => "0" , "OFF" => "1" },
+        "Zone2Input" => { "Prefix" => "A" ,
+                          "PHONO" => "D0" ,
+                          "CD" => "D1" ,
+                          "TUNER" => "D2" ,
+                          "CD-R" => "D4" ,
+                          "MD/TAPE" => "CF" ,
+                          "DVD" => "CD" ,
+                          "D-TV/LD" => "D9" ,
+                          "CABLE/SAT" => "CC" ,
+                          "SAT" => "CB" ,
+                          "VCR1" => "D6" ,
+                          "VCR2/DVR" => "D7" ,
+                          "VCR3" => "CE" ,
+                          "V-AUX" => "D8" },
+        "Power" => { "Prefix" => "A1" , "ON" => "D" , "OFF" => "E" },
+        "Zone1Power" => { "Prefix" => "E7" , "ON" => "E" , "OFF" => "F" },
+        "Zone2Power" => { "Prefix" => "EB" , "ON" => "A" , "OFF" => "B" },
+        "Zone3Power" => { "Prefix" => "AE" , "ON" => "D" , "OFF" => "E" },
+        "Zone3Mute" => { "Prefix" => "E" , "ON" => "2" , "OFF" => "6" , "Suffix" => "6" },
+        "Zone3Volume" => { "Prefix" => "AF" , "Up" => "D" , "Down" => "E" },
+        "Zone3Input" => { "Prefix" => "AF" ,
+                          "PHONO" => "1" ,
+                          "CD" => "2" ,
+                          "TUNER" => "3" ,
+                          "CD-R" => "5" ,
+                          "MD/TAPE" => "4" ,
+                          "DVD" => "C" ,
+                          "D-TV/LD" => "6" ,
+                          "CABLE/SAT" => "7" ,
+                          "SAT" => "8" ,
+                          "VCR1" => "9" ,
+                          "VCR2/DVR" => "A" ,
+                          "VCR3" => "B" ,
+                          "V-AUX" => "0" },
+        #...,
+        "TunerPreset" => { "Prefix" => "AE" ,
+                           "Page" => { "A" => "0" , "B" => "1" , "C" => "2" , "D" => "3" , "E" => "4" } ,
+                           "Num" => { "1" => "5" , "2" => "6" , "3" => "7" , "4" => "8" , "5" => "9" , "6" => "A" , "7" => "B" , "8" => "C" } },
+        #...,
+        "SpeakerRelay" => { "Prefix" => "EA" ,
+                            "A" => { "ON" => "B" , "OFF" => "C" } ,
+                            "B" => { "ON" => "D" , "OFF" => "E" } }
       },
       "System" =>
-      { "Prefix" => "2"
+      { "Prefix" => "2",
+        "Zone1Volume" => { "Prefix" => "30" ,
+                           "Eval" => "val" ,
+                           "Up" => "\$yamaha{'Zone1Volume'}++;
+                                    itoa(\$yamaha{'Zone1Volume'});" ,
+                           "Down" => "\$yamaha{'Zone1Volume'}++;
+                                      itoa(\$yamaha{'Zone1Volume'});",
+                           "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
+                                                    itoa(\$yamaha{'Zone1Volume'});"},
+                           "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
+                                                 itoa(\$yamaha{'Zone1Volume'});"}
+        },
+        "Zone2Volume" => { "Prefix" => "31" ,
+                           "Eval" => "val" ,
+                           "Up" => "\$yamaha{'Zone2Volume'}++;
+                                    itoa(\$yamaha{'Zone2Volume'});" ,
+                           "Down" => "\$yamaha{'Zone2Volume'}++;
+                                      itoa(\$yamaha{'Zone2Volume'});",
+                           "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
+                                                    itoa(\$yamaha{'Zone2Volume'});"},
+                           "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
+                                                 itoa(\$yamaha{'Zone2Volume'});"}
+        },
+        "Zone3Volume" => { "Prefix" => "34" ,
+                           "Eval" => "val" ,
+                           "Up" => "\$yamaha{'Zone3Volume'}++;
+                                    itoa(\$yamaha{'Zone3Volume'});" ,
+                           "Down" => "\$yamaha{'Zone3Volume'}++;
+                                      itoa(\$yamaha{'Zone3Volume'});",
+                           "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
+                                                    itoa(\$yamaha{'Zone3Volume'});"},
+                           "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
+                                                 itoa(\$yamaha{'Zone3Volume'});"}
+        },
       }
+    },
+    "Report" =>
+    { "ControlType" => [ "serial" , "IR" , "panel" , "system" , "encoder" ],
+      "GuardStatus" => ["No" , "System" , "Setting" ],
+	  "00" => { "00" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};",
+                "01" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};",
+                "02" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};"
+      },
+      "01" => "\$error .= \"ERROR: SYSTEM WARNING \$rdat.\n\";",
+      "10" => "assert(14>atoi(\$rdat));\$yamaha{'Playback'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Playback'}[\$rdat];\$info .= \"Playback = \$yamaha{'Playback'}\n\";",
+      "11" => "assert(12>atoi(\$rdat));\$yamaha{'Fs'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Fs'}[\$rdat];\$info .= \"Fs = \$yamaha{'Fs'}\n\";",
+      "12" => "assert(3>atoi(\$rdat));\$yamaha{'EX/ES'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'EX/ES'}[\$rdat];\$info .= \"EX/ES = \$yamaha{'EX/ES'}\n\";",
+      "13" => "assert(2>atoi(\$rdat));\$yamaha{'Thr/Bypass'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Thr/Bypass = \$yamaha{'Thr/Bypass'}\n\";",
+      "14" => "assert(2>atoi(\$rdat));\$yamaha{'REDdts'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'REDdts'}[\$rdat];\$info .= \"REDdts = \$yamaha{'REDdts'}\n\";",
+      "15" => "assert(2>atoi(\$rdat));\$yamaha{'TunerTuned'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"TunerTuned = \$yamaha{'TunerTuned'}\n\";",
+      "16" => "assert(2>atoi(\$rdat));\$yamaha{'Dts96/24'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Dts96/24 = \$yamaha{'Dts96/24'}\n\";",
+      "20" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((\$rdat>>2)^(\$rdat&1)); \$info .= setZ3Power(\$rdat&1);"
     }
   }
 );
@@ -111,22 +239,31 @@ my %Spec =
 ## END OF DO-NOT-DELETE ##
 
 my $PortName = "COM1";
-my $PortObj = new Win32::SerialPort ($PortName)
-       || die "Can't open $PortName: $^E\n";
+my $PortObj;
 
-$PortObj->databits(8);
-$PortObj->baudrate(9600);
-$PortObj->parity("none");
-$PortObj->handshake("none");
-$PortObj->parity_enable(F);
-$PortObj->stopbits(1);
-$PortObj->buffers(4096, 4096);
-$PortObj->dtr_active(1);
-$PortObj->rts_active(1);            
+my $info = "";
+my $warning = "";
+my $error = "";
 
-if ($PortObj->write_settings != 1) 
+sub setupSerialPort
 {
-	print "sorry, couldn't setup serial port";
+	$PortObj = new Win32::SerialPort ($PortName)
+	       || die "Can't open $PortName: $^E\n";
+	
+	$PortObj->databits(8);
+	$PortObj->baudrate(9600);
+	$PortObj->parity("none");
+	$PortObj->handshake("none");
+	$PortObj->parity_enable(F);
+	$PortObj->stopbits(1);
+	$PortObj->buffers(4096, 4096);
+	$PortObj->dtr_active(1);
+	$PortObj->rts_active(1);            
+	
+	if ($PortObj->write_settings != 1) 
+	{
+		print "sorry, couldn't setup serial port";
+	}
 }
 
 sub sendInit
@@ -139,12 +276,17 @@ sub sendInit
 	print "\n";
 }
 
+$dcnfail = 0;
 sub sendReady # getConfiguration
 {
 	print "Sending Ready command...\n";
 	$PortObj->write("000");
 	($count_in, $response) = $PortObj->read(512);
 	print "Got $count_in bytes, reading Configuration...\n";
+	if ( 0 == $count_in )
+	{
+		$response = "N";
+	}
 
 	# DCn
 	$response =~ s/(.)//;
@@ -153,7 +295,29 @@ sub sendReady # getConfiguration
 	elsif ( m/12/ ) { print(" DC2\n"); }
 	elsif ( m/13/ ) { print(" DC3\n"); }
 	elsif ( m/14/ ) { print(" DC4\n"); }
-	else { print "error: No DCn\n" and exit; }
+	else
+	{
+		print "error: No DCn... ";
+		if ( 0 == $dcnfail )
+		{
+			$dcnfail++;
+			print "reloading serial interface.\n";
+			undef $PortObj;
+			setupSerialPort();
+			return sendReady();
+		} elsif ( 1 == $dcnfail ) {
+			$dcnfail++;
+			print "sleeping... ";
+			sleep 30;
+			print "reloading serial interface.\n";
+			undef $PortObj;
+			setupSerialPort();
+			return sendReady();
+		} else {
+			print "failing.\n" and exit;
+		}
+	}
+	$dcnfail = 0;
 	
 	print " Received Configuration...\n";
 	# 5B Model ID
@@ -171,17 +335,51 @@ sub sendReady # getConfiguration
 	$dataLength = atoi($dataLength);
 	print " ($dataLength)\n";
 	# up to 256B data
-	if ( $dataLength < 9 ) { print "error: Data length less than minimum.\n" and exit; }
+	if ( $dataLength < 9 )
+	{
+		print "error: Data length less than minimum.\n";
+		print "reloading serial interface.\n";
+		$dcnfail++;
+		return sendReady();
+	}
 	$yamaha{'System'} = substr($response,7,1);
 	$yamaha{'Power'} = substr($response,8,1);
 	if ( $yamaha{'System'} eq "0" )
 	{
 		if ( $yamaha{'Power'} eq "0" ) {
-			if ( $dataLength != 9 ) { print "error: Data length greater than expected.\n" and exit;
-			}
+			if ( $dataLength != 9 ) { print "error: Data length greater than expected.\n" and exit; }
 		} else {
-			if ( $dataLength != 138 ) { print "error: Data length not as expected.\n" and exit;
-			}
+			if ( $dataLength != 138 ) { print "error: Data length not as expected.\n" and exit; }
+
+			$yamaha{'Zone1Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,9,1)];
+			$yamaha{'6chInput'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,10,1)];
+			$yamaha{'InputMode'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'InputMode'}[substr($response,11,1)];
+			$yamaha{'Zone1Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,12,1)];
+			$yamaha{'Zone2Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,13,1)];
+			$yamaha{'Zone2Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,14,1)];
+			# Volume is numeric.  Higher = Louder.  0.5db increment.
+			$yamaha{'Zone1Volume'} = atoi(substr($response,15,2));
+			$yamaha{'Zone2Volume'} = atoi(substr($response,17,2));
+			# 19..20 "Program"
+			$yamaha{'Effect'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,21,1)];
+			# 22 "6.1/ES"
+			# 23 "OSD"
+			# 24 "Sleep"
+			$yamaha{'TunerPage'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'ABCDE'}[substr($response,25,1)];
+			$yamaha{'TunerNum'} = substr($response,26,1);
+			$yamaha{'NightMode'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,27,1)];
+			# 28 "Don't Care"
+			$yamaha{'SpeakerA'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,29,1)];
+			$yamaha{'SpeakerB'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,30,1)];
+
+			print "== === Yamaha ";
+			if ( $yamaha{'ModelID'} eq "R0161" ) { print "RX-V2400"; }
+			else { print $yamaha{'ModelID'}; }
+			print " Settings === ==\n";
+			print "          Zone 1    Zone 2    Zone 3\n";
+			print "Input     $yamaha{'Zone1Input'}    $yamaha{'Zone2Input'}    \$yamaha{'Zone3Input'}\n";
+			print "Volume    $yamaha{'Zone1Volume'}    $yamaha{'Zone2Volume'}    \$yamaha{'Zone3Volume'}\n";
+			print "Mute      $yamaha{'Zone1Mute'}    $yamaha{'Zone2Mute'}    \$yamaha{'Zone3Mute'}\n";
 		}
 	}
 	print "  data: ";
@@ -235,8 +433,15 @@ sub sendControl # getReport
 		$cdr =~ s/(\S+)\s*//;
 		$car = $1;
 		print "car $car cdr $cdr source source\n$packet $packetTail\n";
-		if ( !defined($source->{$car}) )
+		if ( !defined($source->{$car}) &&
+			( "" ne $cdr
+			|| !defined($source->{'Eval'})
+			|| "val" eq $source->{'Eval'} ) )
 		{
+			if ( "" ne $cdr ) { print "necdr\n"; }
+			else { print "cdr |$cdr|\n"; }
+			if ( !defined($source->{'Eval'}) ) { print "nedef\n"; }
+			elsif ( "val" ne $source->{'Eval'} ) { print "seval $source->{'Eval'}\n"; }
 			return "error: Couldn't understand '$car' in '$inStr'";
 		}
 		if ( "" ne $cdr )
@@ -249,23 +454,312 @@ sub sendControl # getReport
 			$source = $source->{$car};
 		} else {
 			print("source->{$car} $source->{$car}\n");
-			$packet = $packet.$source->{$car}.$packetTail;
+			if ( defined($source->{'Eval'}) )
+			{
+				if ( "val" eq $source->{'Eval'} )
+				{
+					$packet = $packet.eval($source->{$car}).$packetTail;
+				} else {
+					$packet = $packet.eval($source->{'Eval'}).$packetTail;
+				}
+			} else {
+				$packet = $packet.$source->{$car}.$packetTail;
+			}
 		}
 	}
 	print "send $packet";
 
 	print "Sending Control $inStr...\n";
-	#$PortObj->write($STX."07EB".$inStr.$ETX);
 	$PortObj->write($packet);
 	($count_in, $string_in) = $PortObj->read(275);
 	print "Got $count_in bytes back.\n";
-	$string_in = "";
+	#$string_in = "";
 	print "\n";
+	$string_in =~ s/(.)/$1 /g;
+	$string_in =~ s/$STX/STX/g;
+	$string_in =~ s/$ETX/ETX/g;
+	$retMsg = "OK - Received $count_in byte response.";
+	$retMsg = $retMsg."\n  - $string_in";
+	return $retMsg;
 	return "OK - Received $count_in byte response.";
 }
 
+sub writeMacroFile
+{
+	local($inFile) = @_;
+
+	if (open(MYFILE, ">macro/$inFile.rxm")) {
+		for $key ( keys %MacroLibrary )
+		{
+			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
+		}
+	}
+	close(MYFILE);
+}
+
+sub readMacroFile
+{
+	local($inFile) = @_;
+
+	if (open(MYFILE, "macro/$inFile.rxm")) {
+		while (<MYFILE>)
+		{
+	    	next unless /\S/;       # blank line check
+	
+			s/\n//;
+			s/\r//;
+			s/^\s*//;
+
+			if ( /^macro\s+(\S+)/i ) {
+				$macroName = $1;
+				print "reading macro '$macroName'\n";
+				$MacroLibrary{$macroName} = "";
+		
+			    while (<MYFILE>) 
+			    {
+			    	next unless /\S/;       # blank line check
+					last if /^end/;
+			
+					s/\n//;
+					s/\r//;
+					s/^\s*//;
+					$MacroLibrary{$macroName} .= $_."\n";
+				}
+			}
+		}
+	}
+	close(MYFILE);
+}
+
+sub decode
+{
+	local($inStr) = @_;
+	$_ = $inStr;
+
+	if ( /^Control/ )
+	{
+		s/^Control\s*//;
+		$command = $_;
+		#sendInit();
+		sendReady();
+		$status = sendControl($command);
+		print $status."\n";
+		print $client $status."\n";
+	} elsif ( /^play/i ) {
+		s/play\s*//;
+		# Fork since this will never close on it's own.
+		# This will interrupt current audio.
+		system("fork.pl \"c:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+	} elsif ( /^sleep/i ) {
+		s/sleep\s*//;
+		$time = 0;
+		if ( s/^(\d+)$// )
+		{
+			$time = $1;
+		}
+		if ( s/(\d+)d//i )
+		{
+			$time += 24 * 60 * 60 * $1;
+		}
+		if ( s/(\d+)h//i )
+		{
+			$time += 60 * 60 * $1;
+		}
+		if ( s/(\d+)m//i )
+		{
+			$time += 60 * $1;
+		}
+		if ( s/(\d+)s//i )
+		{
+			$time += $1;
+		}
+		sleep $time;
+	} elsif ( /^test/i ) {
+		$rcvd = 0;
+            $string_in = "";
+		while ( 20 > $rcvd )
+		{
+			($count_in, $string_i) = $PortObj->read(512);
+                $string_in .= $string_i;
+			if ( 0 != $count_in )
+			{
+				$rcvd++;
+				print "Got $count_in bytes back.\n";
+				#$string_in = "";
+				print "\n";
+                    $pat = $STX."(.)(.)(..)(..)".$ETX;
+                    while ( $string_in =~ s/$pat// )
+                    {
+                      print $client "recvd $1$2$3$4\n";
+                      print $client "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
+                      print $client "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
+                      $rcmd = $3;
+                      $rdat = $4;
+                      print "rcmd $3 rdat $4\n";
+                      if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
+                      {
+                        print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
+                        eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
+                        if ( "" ne $error )
+                        {
+                          print "===================================\n";
+                          print "===  vv  !!!  ERRORS  !!!  vv   ===\n";
+                          print "===================================\n";
+                          print $error;
+                          print "===================================\n";
+                          print "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
+                          print "===================================\n";
+                          $error = "";
+                        }
+                        if ( "" ne $warning )
+                        {
+                          print "\nWarnings:\n";
+                          print $warning;
+                          print "\n";
+                          $warning = "";
+                        }
+                        if ( "" ne $info )
+                        {
+                          print $info."\n";
+                          $info = "";
+                        }
+                      }
+                      $rdat = "";
+                    }
+#					$string_in =~ s/(.)/$1 /g;
+#					$string_in =~ s/$STX/STX/g;
+#					$string_in =~ s/$ETX/ETX/g;
+#					$retMsg = "OK - Received $count_in byte response.";
+#					$retMsg = $retMsg."\n  - $string_in";
+#					#print $client $retMsg."\n";
+#					$_ = "c:\\Documents and Settings\\Dave\\My Documents\\My Music\\Gershwin\\American Draft - Someone to Watch Over Me.mp3";
+#					system("fork.pl \"c:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+			}
+		}
+	} elsif ( /^macro\s+(\S+)/i ) {
+		$macroName = $1;
+		$MacroLibrary{$macroName} = "";
+
+		print $client "Recording macro '$macroName'...\n";
+		print $client "(use 'end' when finished)\n";
+
+	    while (<$client>) 
+	    {
+	    	next unless /\S/;       # blank line check
+			last if /^end/;
+	
+			s/\n//;
+			s/\r//;
+			s/^\s*//;
+			$MacroLibrary{$macroName} .= $_."\n";
+		}
+
+		print $client "Recorded macro '$macroName' as follows:\n";
+		print $client $MacroLibrary{$macroName}."\n[end of listing]\n";
+		writeMacroFile("default");
+	} elsif ( /^run\s+(\S+)/i ) {
+		my $macroName = $1;
+		if ( !defined($MacroLibrary{$macroName}) ) {
+			print $client "error: Unknown macro '$macroName'\n";
+			return;
+		}
+		my $macro = $MacroLibrary{$macroName};
+		print "running macro '$macro'\n";
+		while ( $macro =~ s/(.+?)\n// )
+		{
+			print "running cmd '$1'\n";
+			decode($1);
+		}
+		print $client "Macro '$macroName' completed.\n";
+	} elsif ( /^write\s+(\S+)/i ) {
+		writeMacroFile($1);
+	} elsif ( /^read\s+(\S+)/i ) {
+		readMacroFile($1);
+	} elsif ( /^clear\s+(\S+)/i ) {
+		%MacroLibrary = ();
+	} elsif ( /^bye/i ) {
+		close $client;
+ 		return;
+	} elsif ( /^reload/i ) {
+		close $client;
+		close $server;
+		undef $PortObj;
+		exec( "\"$app\"" );
+	} elsif ( /^shutdown/i ) {
+		close $client;
+		close $server;
+		undef $PortObj;
+		exit;
+	} elsif ( /^help/i ) {
+		s/help\s*//;
+		$help = $_;
+
+		$source = $Spec{$yamaha{'ModelID'}};
+		$cdr = $_;
+		$count = 0;
+		if ( "" eq $cdr )
+		{
+			print $client "\nWelcome to help.\n";
+			print $client "Basic commands are:\n";
+			print $client "  Control\n";
+			print $client "  play      - play specified media\n";
+			print $client "  sleep     - sleep for specified time (e.g. 7h 5m 23s)\n";
+			print $client "  bye       - disconnect from server\n";
+			print $client "  reload    - restart server (for updates)\n";
+			print $client "  shutdown  - shutdown server\n";
+			print $client "  help      - this message\n";
+			print $client "\n";
+			print $client " Additional documentation on capitalized basic commands is available by typing\n";
+			print $client "help and that command name.  e.g. \"help Control\"\n";
+			print $client " Command options with an asterisk (*) following their name are sub-commands\n";
+			print $client "which have their own options which you can get help on too.\ne.g. \"help Control Operation\"\n";
+			print $client " Command syntax is based on the Yamaha I/O specifications.  Sorry\n";
+			print $client " Most commands are case-sensitive.\n";
+		} else {
+			print $client "\nCommands that being with \"$_\" have the following options:\n";
+		}
+		while ( "" ne $cdr )
+		{
+			if ( $count > 100 ) { print $client "error: Internal search fault.\n"; $cdr = ""; return; }
+			$count++;
+			$cdr =~ s/(\S+)\s*//;
+			$car = $1;
+			if ( !defined($source->{$car}) )
+			{
+				print $client "error: Couldn't understand '$car' in '$help'\n";
+				$cdr = "";
+				return;
+			}
+			if ( "" ne $cdr )
+			{
+				$source = $source->{$car};
+			} else {
+				$options = 0;
+				for $key ( keys %{$source->{$car}} )
+				{
+					if ( "Prefix" ne $key && "Suffix" ne $key && "Eval" ne $key )
+					{
+						$options++;
+						print $client "  ".$key;
+						if ( defined((keys %{$source->{$car}->{$key}})[0]) ) { print $client "*"; }
+						print $client "\n";
+					}
+				}
+				if ( 0 == $options ) { print $client "  <none>\n"; }
+			}
+		}
+	} else {
+		print $client "error: Couldn't understand command '$_'\n";
+	}
+	print $client "\n";
+}
+
+setupSerialPort();
 sendInit();
 sendReady();
+
+my %MacroLibrary = ();
+readMacroFile("default");
 
 $PORT = 9000;
 
@@ -276,6 +770,8 @@ $server = IO::Socket::INET->new( Proto     => 'tcp',
 
 die "sorry, couldn't setup server" unless $server;
 print "[LINX-Server waiting for commands on port $PORT]\n";
+
+#$PortObj->write($STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
 
 while ($client = $server->accept()) 
 {
@@ -295,91 +791,56 @@ while ($client = $server->accept())
 		s/\n//;
 		s/\r//;
 		s/^\s*//;
-
-		if ( /^Control/ )
-		{
-			s/^Control\s*//;
-			$command = $_;
-			sendInit();
-			sendReady();
-			$status = sendControl($command);
-			print $status."\n";
-			print $client $status."\n";
-		} elsif ( /^bye/i ) {
-     		last;
-		} elsif ( /^reload/i ) {
-    		close $client;
-			close $server;
-			undef $PortObj;
-			exec( "\"$app\"" );
-		} elsif ( /^shutdown/i ) {
-    		close $client;
-			close $server;
-			undef $PortObj;
-			exit;
-		} elsif ( /^help/i ) {
-			s/help\s*//;
-			$help = $_;
-
-			$source = $Spec{$yamaha{'ModelID'}};
-			$cdr = $_;
-			$count = 0;
-			if ( "" eq $cdr )
-			{
-				print $client "\nWelcome to help.\n";
-				print $client "Basic commands are:\n";
-				print $client "  Control\n";
-				print $client "  bye\n";
-				print $client "  reload\n";
-				print $client "  shutdown\n";
-				print $client "  help\n";
-				print $client "\n";
-				print $client " Additional documentation on capitalized basic commands is available by typing\n";
-				print $client "help and that command name.  e.g. \"help Control\"\n";
-				print $client " Command options with an asterisk (*) following their name are sub-commands\n";
-				print $client "which have their own options which you can get help on too.  e.g. \"help Control Operation\"\n";
-			} else {
-				print $client "\nCommands that being with \"$_\" have the following options:\n";
-			}
-			while ( "" ne $cdr )
-			{
-				if ( $count > 100 ) { print $client "error: Internal search fault.\n"; $cdr = ""; next; }
-				$count++;
-				$cdr =~ s/(\S+)\s*//;
-				$car = $1;
-				if ( !defined($source->{$car}) )
-				{
-					print $client "error: Couldn't understand '$car' in '$help'\n";
-					$cdr = "";
-					next;
-				}
-				if ( "" ne $cdr )
-				{
-					$source = $source->{$car};
-				} else {
-					$options = 0;
-					for $key ( keys %{$source->{$car}} )
-					{
-						if ( "Prefix" ne $key && "Suffix" ne $key )
-						{
-							$options++;
-							print $client "  ".$key;
-							if ( defined((keys %{$source->{$car}->{$key}})[0]) ) { print $client "*"; }
-							print $client "\n";
-						}
-					}
-					if ( 0 == $options ) { print $client "  <none>\n"; }
-				}
-			}
-		}
-		print $client "\n";
+		decode($_);
     }
-    close $client;
+    #close $client;
 } 
 
 #close the port - when the server is shut down
 undef $PortObj;
 
+
+sub setZ1Power
+{
+	local($inVal) = @_;
+    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+    if ( $yamaha{'Zone1Power'} eq $val ) { return ""; }
+    $yamaha{'Zone1Power'} = $val;
+    $msg = "Zone1Power turned $val.\n";
+    if ( "ON" eq $val )
+    {
+        $msg .= "Input: $yamaha{'Zone1Input'}  Volume: $yamaha{'Zone1Volume'}  Mute: $yamaha{'Zone1Mute'}\n";
+    }
+    return $msg;
+}
+
+sub setZ2Power
+{
+	local($inVal) = @_;
+    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+    if ( $yamaha{'Zone2Power'} eq $val ) { return ""; }
+    $yamaha{'Zone2Power'} = $val;
+    $msg = "Zone2Power turned $val.\n";
+    if ( "ON" eq $val )
+    {
+        $msg .= "Input: $yamaha{'Zone2Input'}  Volume: $yamaha{'Zone2Volume'}  Mute: $yamaha{'Zone2Mute'}\n";
+    }
+    return $msg;
+}
+
+sub setZ3Power
+{
+	local($inVal) = @_;
+    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+    if ( $yamaha{'Zone3Power'} eq $val ) { return ""; }
+    $yamaha{'Zone3Power'} = $val;
+    $msg = "Zone3Power turned $val.\n";
+    if ( "ON" eq $val )
+    {
+        $msg .= "Input: $yamaha{'Zone3Input'}  Volume: $yamaha{'Zone3Volume'}  Mute: $yamaha{'Zone3Mute'}\n";
+    }
+    return $msg;
+}
 
 sub atoi
 {
@@ -393,6 +854,21 @@ sub atoi
 		if ( $num >= 0x30 && $num <= 0x39 ) { $retVal += ($num - 0x30); }
 		elsif ( $num >= 0x41 && $num <= 0x46 ) { $retVal += (10 + $num - 0x41); }
 		else { print "atoi error at $char ($num) $retVal $inStr\n" and exit; }
+	}
+	return $retVal;
+}
+
+sub itoa
+{
+	local($inNum) = @_;
+	$retVal = "";
+	while ( $inNum > 0 )
+	{
+		$char = $inNum % 16;
+		$inNum >>= 4;
+		if ( $char < 10 ) { $char += 0x30; }
+		else { $char += (0x41-10); }
+		$retVal = chr($char).$retVal;
 	}
 	return $retVal;
 }
