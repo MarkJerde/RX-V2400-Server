@@ -31,10 +31,6 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# $Revision: 1.1 $
-# $Date: 2006/01/26 04:47:12 $
-# $RCSfile: rxv2400server.pl,v $
-
 # version 0.1 of rxv2400server.pl ##################################
 ####################################################################
 ############## hacked by Mark Jerde, fall 05 (mjerde3@charter.net) #
@@ -250,6 +246,7 @@ sub setupSerialPort
 	$PortObj = new Win32::SerialPort ($PortName)
 	       || die "Can't open $PortName: $^E\n";
 	
+	$PortObj->user_msg(ON);
 	$PortObj->databits(8);
 	$PortObj->baudrate(9600);
 	$PortObj->parity("none");
@@ -317,7 +314,6 @@ sub sendReady # getConfiguration
 			print "failing.\n" and exit;
 		}
 	}
-	$dcnfail = 0;
 	
 	print " Received Configuration...\n";
 	# 5B Model ID
@@ -341,6 +337,21 @@ sub sendReady # getConfiguration
 		print "reloading serial interface.\n";
 		$dcnfail++;
 		return sendReady();
+	} else {
+		while ( $dataLength > ($count_in - 12) )
+		{
+			print "warning: Ready response missing ".($dataLength - ($count_in - 12))." bytes.\n";
+			($ncount_in, $nresponse) = $PortObj->read(512);
+			$count_in += $ncount_in;
+			$response .= $nresponse;
+			if ( $ncount_in == 0 )
+			{
+				print "error: Couldn't read ready data.\n";
+				print "reloading serial interface.\n";
+				$dcnfail++;
+				return sendReady();
+			}
+		}
 	}
 	$yamaha{'System'} = substr($response,7,1);
 	$yamaha{'Power'} = substr($response,8,1);
@@ -400,8 +411,15 @@ sub sendReady # getConfiguration
 	$response =~ s/(.)//;
 	$_ = str2hex($1);
 	if ( m/03/ ) { print(" ETX\n"); }
-	else { print "error: No ETX\n" and exit; }
+	else
+	{
+		print "error: No ETX\n";
+		print "reloading serial interface.\n";
+		$dcnfail++;
+		return sendReady();
+	}
 	print "\n";
+	$dcnfail = 0;
 }
 
 sub sendControl # getReport
@@ -432,7 +450,7 @@ sub sendControl # getReport
 		print "cdr $cdr\n";
 		$cdr =~ s/(\S+)\s*//;
 		$car = $1;
-		print "car $car cdr $cdr source source\n$packet $packetTail\n";
+#		print "car $car cdr $cdr source source\n$packet $packetTail\n";
 		if ( !defined($source->{$car}) &&
 			( "" ne $cdr
 			|| !defined($source->{'Eval'})
@@ -446,14 +464,14 @@ sub sendControl # getReport
 		}
 		if ( "" ne $cdr )
 		{
-			print("source $source\n");
-			print("source keys");
-			for $key ( keys %{$source} ) { print " ".$key; }
-			print "\n";
-			print("source->{$car} ".$source->{$car}."\n");
+#			print("source $source\n");
+#			print("source keys");
+#			for $key ( keys %{$source} ) { print " ".$key; }
+#			print "\n";
+#			print("source->{$car} ".$source->{$car}."\n");
 			$source = $source->{$car};
 		} else {
-			print("source->{$car} $source->{$car}\n");
+#			print("source->{$car} $source->{$car}\n");
 			if ( defined($source->{'Eval'}) )
 			{
 				if ( "val" eq $source->{'Eval'} )
