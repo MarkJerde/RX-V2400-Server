@@ -2,7 +2,7 @@ macro wakeup
 Control Operation Zone2Power ON
 Control Operation Zone2Input DVD
 Control System Zone2Volume Set -50
-play c:\Documents and Settings\Dave\My Documents\My Music\My Playlists\Wakeup.wpl
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
 Control Operation Zone3Power OFF
 sleep 6s
 Control System Zone2Volume Adjust 1
@@ -45,12 +45,86 @@ Control System Zone2Volume Adjust 1
 sleep 6s
 Control System Zone2Volume Adjust 1
 sleep 2m
-play c:\Documents and Settings\Dave\My Documents\My Music\My Playlists\KnockOutOfBed.wpl
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\KnockOutOfBed.wpl
 sleep 2m
 Control Operation Zone2Input TUNER
 Control Operation Zone1Power ON
 Control Operation Zone1Input TUNER
-Control System Zone1Volume Set -30
+Control System Zone1Volume Set -40
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 1h 30m
+Control Operation Power OFF
+end
+
+macro wakeupz2
+Control Operation Zone2Power ON
+Control Operation Zone2Input DVD
+Control System Zone2Volume Set -50
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\KnockOutOfBed.wpl
+sleep 2m
+Control Operation Zone2Input TUNER
 sleep 1h 30m
 Control Operation Power OFF
 end
@@ -65,6 +139,227 @@ Control System Zone2Volume Set -50
 Control Operation Zone3Power ON
 Control Operation Zone3Input CD-R
 Control System Zone3Volume Set -50
+Control Operation Power OFF
+end
+
+macro meditate
+sleep 2m
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\Loonwa.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.1.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.2.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.3.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.4.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.5.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 3m 40s
+Control System Zone2Volume Adjust -4
+play f:\Documents and Settings\Dave\My Documents\My Music\Upload\Loonwa.wav
+end
+
+macro bedtime
+Control Operation Zone2Power ON
+Control Operation Zone2Input DVD
+Control System Zone2Volume Set -40
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+Control Operation Power OFF
+end
+
+macro testtime
+Control Operation Zone2Power ON
+Control Operation Zone2Input DVD
+Control System Zone2Volume Set -40
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
 Control Operation Power OFF
 end
 

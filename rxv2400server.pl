@@ -4,7 +4,7 @@
 #   Control software for certain Yamaha A/V receivers.
 #   This is independently developed software with no relation to Yamaha.
 #
-#   Copyright 2006 Mark Jerde
+#   Copyright 2006-2007 Mark Jerde
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -71,6 +71,10 @@ use Sys::Hostname;
 
 $app = $0;
 print "app $app\n";
+
+my $debug = 0;
+
+chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
 
 my %yamaha = ( "System" => "1", "Power" => "0" ); # Busy and Off
 
@@ -423,15 +427,20 @@ sub sendReady # getConfiguration
 			# 28 "Don't Care"
 			$yamaha{'SpeakerA'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,29,1)];
 			$yamaha{'SpeakerB'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,30,1)];
+			# ...
+			$yamaha{'Zone3Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,127,1)];
+			$yamaha{'Zone3Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,128,1)];
+			$yamaha{'Zone3Volume'} = atoi(substr($response,129,2));
+
 
 			print "== === Yamaha ";
 			if ( $yamaha{'ModelID'} eq "R0161" ) { print "RX-V2400"; }
 			else { print $yamaha{'ModelID'}; }
 			print " Settings === ==\n";
 			print "          Zone 1    Zone 2    Zone 3\n";
-			print "Input     $yamaha{'Zone1Input'}    $yamaha{'Zone2Input'}    \$yamaha{'Zone3Input'}\n";
-			print "Volume    $yamaha{'Zone1Volume'}    $yamaha{'Zone2Volume'}    \$yamaha{'Zone3Volume'}\n";
-			print "Mute      $yamaha{'Zone1Mute'}    $yamaha{'Zone2Mute'}    \$yamaha{'Zone3Mute'}\n";
+			print "Input     $yamaha{'Zone1Input'}    $yamaha{'Zone2Input'}    $yamaha{'Zone3Input'}\n";
+			print "Volume    $yamaha{'Zone1Volume'}    $yamaha{'Zone2Volume'}    $yamaha{'Zone3Volume'}\n";
+			print "Mute      $yamaha{'Zone1Mute'}    $yamaha{'Zone2Mute'}    $yamaha{'Zone3Mute'}\n";
 		}
 	}
 	print "  data: ";
@@ -484,6 +493,14 @@ sub readReport
 sub sendControl # getReport
 {
 	local($inStr) = @_;
+
+	$curCtrl = time;
+	if ( $curCtrl > ($lastCtrl + 10) )
+	{
+		print "Sending Ready...\n";
+		sendReady();
+	}
+	$lastCtrl = time;
 
 	# Rules
 	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
@@ -546,12 +563,14 @@ sub sendControl # getReport
 	}
 	print "send $packet";
 
-	print "Sending Control $inStr...\n";
 	$curCtrl = time;
 	if ( $curCtrl > ($lastCtrl + 10) )
 	{
+		# also done at the top of this function, but included here in case our decode took a long time.
+		print "Sending Ready...\n";
 		sendReady();
 	}
+	print "Sending Control $inStr...\n";
 	$PortObj->write($packet);
 	$lastCtrl = time;
 
@@ -567,8 +586,8 @@ sub writeMacroFile
 		{
 			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
 		}
+		close(MYFILE);
 	}
-	close(MYFILE);
 }
 
 sub readMacroFile
@@ -601,10 +620,11 @@ sub readMacroFile
 				}
 			}
 		}
+		close(MYFILE);
 	}
-	close(MYFILE);
 }
 
+$advInpMode = 0;
 sub decode
 {
 	local($inStr) = @_;
@@ -622,7 +642,7 @@ sub decode
 		s/play\s*//;
 		# Fork since this will never close on it's own.
 		# This will interrupt current audio.
-		system("fork.pl \"c:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+		system("fork.pl \"f:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
 	} elsif ( /^sleep/i ) {
 		s/sleep\s*//;
 		$time = 0;
@@ -742,6 +762,7 @@ sub decode
 		{
 			print "running cmd '$1'\n";
 			decode($1);
+			print "Zone2Volume: $yamaha{'Zone2Volume'}\n";
 		}
 		print $client "Macro '$macroName' completed.\n";
 	} elsif ( /^write\s+(\S+)/i ) {
@@ -750,6 +771,9 @@ sub decode
 		readMacroFile($1);
 	} elsif ( /^clear\s+(\S+)/i ) {
 		%MacroLibrary = ();
+	} elsif ( /^debug\s+([0-9])/i ) {
+		$debug = $1;
+ 		return;
 	} elsif ( /^bye/i ) {
 		close $client;
  		return;
@@ -821,6 +845,30 @@ sub decode
 				if ( 0 == $options ) { print $client "  <none>\n"; }
 			}
 		}
+	} elsif ( /^advimpmode/i ) {
+		# Advanced Input Mode allows arrow keys & history
+		$advInpMode = 1;
+		my $history = ("");
+		my $x = -1;
+		my $y = 0;
+	    while ( 1 == $advInpMode && 2 != $client->recv($buf,1)) 
+	    {
+			if ( $buf eq "z" ) { $advimpmode = 0; }
+			$buf = ord($buf);
+			print $client "got: $buf\n";
+			next;
+			next unless $buf eq "z";
+			last;
+			if ( $x = -1 ) { $history[0] .= $buf; }
+	    	next unless /\S/;       # blank line check
+	
+			s/\n//;
+			s/\r//;
+			s/^\s*//;
+			decode($_);
+	    }
+	} elsif ( /^simimpmode/i ) {
+		$advInpMode = 0;
 	} else {
 		print $client "error: Couldn't understand command '$_'\n";
 	}
@@ -830,6 +878,7 @@ sub decode
 setupSerialPort();
 sendInit();
 sendReady();
+sendControl("Operation Zone1Power ON");
 
 my %MacroLibrary = ();
 readMacroFile("default");
