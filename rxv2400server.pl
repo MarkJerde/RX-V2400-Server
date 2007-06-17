@@ -31,7 +31,7 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# version 0.1 of rxv2400server.pl ##################################
+# version 0.5 of rxv2400server.pl ##################################
 ####################################################################
 ############## hacked by Mark Jerde, fall 05 (mjerde3@charter.net) #
 ####################################################################
@@ -78,6 +78,12 @@ $app = $0;
 print "app $app\n";
 
 my $debug = 0;
+
+if ( !defined($ENV{'HOME'}) )
+{
+	print "warning: \$HOME is undefined.  Setting to current directory.\n";
+	$ENV{'HOME'} = ".";
+}
 
 chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
 
@@ -593,7 +599,12 @@ sub writeMacroFile
 {
 	local($inFile) = @_;
 
-	if (open(MYFILE, ">macro/$inFile.rxm")) {
+	if ( !($inFile =~ m/rxm$/) )
+	{
+		$inFile = "$macroDirectory/$inFile.rxm";
+	}
+
+	if (open(MYFILE, ">$inFile")) {
 		for $key ( keys %MacroLibrary )
 		{
 			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
@@ -606,7 +617,12 @@ sub readMacroFile
 {
 	local($inFile) = @_;
 
-	if (open(MYFILE, "macro/$inFile.rxm")) {
+	if ( !($inFile =~ m/rxm$/) )
+	{
+		$inFile = "$macroDirectory/$inFile.rxm";
+	}
+
+	if (open(MYFILE, "$inFile")) {
 		while (<MYFILE>)
 		{
 	    	next unless /\S/;       # blank line check
@@ -662,7 +678,7 @@ sub decode
 			system("killall shuffle.pl");
 			system("killall mpg123");
 			# Fork so this operation is untimed.
-			system("./shuffle.pl \"$_\"&");
+			system("shuffle.pl \"$_\"&") or system("./shuffle.pl \"$_\"&");
 		}
 	} elsif ( /^sleep/i ) {
 		s/sleep\s*//;
@@ -902,8 +918,41 @@ sendReady();
 #Test line:
 #sendControl("Operation Zone1Power ON");
 
+my $macroDirectory = "";
+if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
+    ((!$windows) && -e "/etc/rxv2400_rxm") )
+{
+	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
+	{
+		mkdir("$ENV{'HOME'}/.rxv2400");
+	} elsif ( ! -d "$ENV{'HOME'}/.rxv2400" ) {
+		print "error: ~/.rxv2400 not a macroDirectory.\n" and die;
+	}
+	$macroDirectory = "$ENV{'HOME'}/.rxv2400";
+} else {
+	$macroDirectory = "macro";
+	if ( ! -e "macro" )
+	{
+		mkdir("macro");
+		if ( ! -d "macro" )
+		{
+			print "warning: 'macro' macroDirectory could not be created.  Attempts to add or save macros may fail.\n";
+		}
+	} elsif ( ! -d "macro" ) {
+		$macroDirectory = ".";
+	}
+}
+
 my %MacroLibrary = ();
-readMacroFile("default");
+if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
+	readMacroFile("$ENV{'HOME'}/.rxv2400_rxm");
+} elsif ( (!$windows) && -e "/etc/rxv2400_rxm" ) {
+	readMacroFile("/etc/rxv2400_rxm");
+} elsif ( -d "macro" && -e "macro/default.rxm" ) {
+	readMacroFile("macro/default.rxm");
+} elsif ( -e "default.rxm" ) {
+	readMacroFile("default.rxm");
+}
 
 $PORT = 9000;
 
