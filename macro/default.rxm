@@ -2,7 +2,7 @@ macro wakeup
 Control Operation Zone2Power ON
 Control Operation Zone2Input DVD
 Control System Zone2Volume Set -50
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+play /home/mjerde/media/music/Wakeup
 Control Operation Zone3Power OFF
 sleep 6s
 Control System Zone2Volume Adjust 1
@@ -45,12 +45,13 @@ Control System Zone2Volume Adjust 1
 sleep 6s
 Control System Zone2Volume Adjust 1
 sleep 2m
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\KnockOutOfBed.wpl
+play /home/mjerde/media/music/Knockout
 sleep 2m
 Control Operation Zone2Input TUNER
 Control Operation Zone1Power ON
 Control Operation Zone1Input TUNER
 Control System Zone1Volume Set -40
+play nothing
 sleep 6s
 Control System Zone2Volume Adjust -1
 sleep 6s
@@ -79,7 +80,7 @@ macro wakeupz2
 Control Operation Zone2Power ON
 Control Operation Zone2Input DVD
 Control System Zone2Volume Set -50
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+play /home/mjerde/media/music/Wakeup
 Control Operation Zone3Power OFF
 sleep 6s
 Control System Zone2Volume Adjust 1
@@ -122,7 +123,7 @@ Control System Zone2Volume Adjust 1
 sleep 6s
 Control System Zone2Volume Adjust 1
 sleep 2m
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\KnockOutOfBed.wpl
+play /home/mjerde/media/music/Knockout
 sleep 2m
 Control Operation Zone2Input TUNER
 sleep 1h 30m
@@ -140,6 +141,7 @@ Control Operation Zone3Power ON
 Control Operation Zone3Input CD-R
 Control System Zone3Volume Set -50
 Control Operation Power OFF
+play nothing
 end
 
 macro meditate
@@ -191,7 +193,7 @@ macro bedtime
 Control Operation Zone2Power ON
 Control Operation Zone2Input DVD
 Control System Zone2Volume Set -40
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+play /home/mjerde/media/music/Wakeup
 sleep 45s
 Control System Zone2Volume Adjust -1
 sleep 45s
@@ -279,7 +281,7 @@ macro testtime
 Control Operation Zone2Power ON
 Control Operation Zone2Input DVD
 Control System Zone2Volume Set -40
-play f:\Documents and Settings\All Users\Documents\My Music\Upload\macro\Wakeup.wpl
+play /home/mjerde/media/music/Wakeup
 sleep 2s
 Control System Zone2Volume Adjust -1
 sleep 2s
