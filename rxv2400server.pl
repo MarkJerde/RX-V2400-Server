@@ -1,4 +1,4 @@
-#! perl -w
+#!/usr/bin/perl -w
 
 #   RX-V2400 Server
 #   Control software for certain Yamaha A/V receivers.
@@ -64,7 +64,12 @@
 # http://www.crynwr.com/lego-robotics/ #############################
 ####################################################################
 
-use Win32::SerialPort 0.15;
+use English;
+my $windows = 0;
+if ( $OSNAME eq "MSWin32" ) { $windows = 1; }
+
+use if ($OSNAME eq "MSWin32"), Win32::SerialPort => 0.15;
+use if ($OSNAME ne "MSWin32"), Device::SerialPort => 0.15;
 use IO::Socket;
 use Net::hostent;
 use Sys::Hostname;
@@ -239,6 +244,7 @@ my %Spec =
 ## END OF DO-NOT-DELETE ##
 
 my $PortName = "COM1";
+if ( !$windows ) { $PortName = "/dev/ttyS0"; }
 my $PortObj;
 
 my $info = "";
@@ -249,8 +255,14 @@ $lastCtrl = 0;
 
 sub setupSerialPort
 {
-	$PortObj = new Win32::SerialPort ($PortName)
-	       || die "Can't open $PortName: $^E\n";
+	if ( $windows )
+	{
+		$PortObj = new Win32::SerialPort ($PortName)
+		       || die "Can't open $PortName: $^E\n";
+	} else {
+		$PortObj = new Device::SerialPort ($PortName)
+		       || die "Can't open $PortName: $^E\n";
+	}
 	
 	$PortObj->user_msg(ON);
 	$PortObj->databits(8);
@@ -640,9 +652,18 @@ sub decode
 		print $client $status."\n";
 	} elsif ( /^play/i ) {
 		s/play\s*//;
-		# Fork since this will never close on it's own.
-		# This will interrupt current audio.
-		system("fork.pl \"f:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+		if ( $windows )
+		{
+			# Fork since this will never close on it's own.
+			# This will interrupt current audio.
+			system("fork.pl \"f:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+		} else {
+			# Stop any previously run so we don't get mixed audio.
+			system("killall shuffle.pl");
+			system("killall mpg123");
+			# Fork so this operation is untimed.
+			system("./shuffle.pl \"$_\"&");
+		}
 	} elsif ( /^sleep/i ) {
 		s/sleep\s*//;
 		$time = 0;
@@ -859,7 +880,7 @@ sub decode
 			next;
 			next unless $buf eq "z";
 			last;
-			if ( $x = -1 ) { $history[0] .= $buf; }
+			if ( $x == -1 ) { $history[0] .= $buf; }
 	    	next unless /\S/;       # blank line check
 	
 			s/\n//;
@@ -878,7 +899,8 @@ sub decode
 setupSerialPort();
 sendInit();
 sendReady();
-sendControl("Operation Zone1Power ON");
+#Test line:
+#sendControl("Operation Zone1Power ON");
 
 my %MacroLibrary = ();
 readMacroFile("default");
