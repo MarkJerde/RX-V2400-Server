@@ -31,7 +31,7 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# version 0.5 of rxv2400server.pl ##################################
+# version 0.6 of rxv2400server.pl ##################################
 ####################################################################
 ############## hacked by Mark Jerde, fall 05 (mjerde3@charter.net) #
 ####################################################################
@@ -42,27 +42,41 @@
 # written by Paul Haas (http://www.hamjudo.com/rcx/talkrcx.txt) ####
 ####################################################################
 # besides a perl version (>5) this script requires two modules #####
-# installed on your system: ########################################
+# installed on your system if using Windows: #######################
 # Win32::API available under http://www.divinf.it/dada/perl/Win32API-0.011.zip
 # Win32::SerialPort available under http://members.aol.com/Bbirthisel/Win32-SerialPort-0.18.tar.gz
 # pmm Win32-SerialPort
 ####################################################################
 ####################################################################
-# this server listens to port 9000 for the following commands:	   #
-# "vor", "stop", "zruck" and "view" 							   #
-# corresponding to the command a string is sent to the serial-port #
-# (to which a Yamaha RX-V 2400 should be connected) that performs  #
-# the operations allowed by the Yamaha receiver         		   #
+# This server listens to port 9000 for various commands detailed   #
+# in the "help" command", corresponding to the command a string is #
+# sent to the serial-port (to which a Yamaha RX-V 2400 should be   #
+# connected) that performs the operations allowed by the Yamaha    #
+# receiver.                                                        #
 ####################################################################
 # before the server starts listening...							   #
 # ...the serial-port is opened									   #
 ####################################################################
-####################################################################
-# linx for more info on rcx-programming: ###########################
-# http://graphics.stanford.edu/~kekoa/rcx/ #########################
-# http://home.concepts.nl/~bvandam/ ################################
-# http://www.crynwr.com/lego-robotics/ #############################
-####################################################################
+
+use 5.008;             # 5.8 required for stable threading
+#use strict;            # Amen
+use warnings;          # Hallelujah
+use threads;           # pull in threading routines
+use threads::shared;   # and variable sharing routines
+
+my $PORT = 9000;
+my $numServersToRun = 1;
+
+# Shared resources:
+our %input  : shared; # Each client will use it's pid as a key to send commands.
+our %output : shared; # Results will be placed here keyed by input pid.
+our %yamaha : shared;
+%yamaha = ( "System" => "1", "Power" => "0" ); # Busy and Off
+our %MacroLibrary : shared;
+our $stopNetworkServers : shared;
+$stopNetworkServers = 0;
+our $runningNetworkServers : shared;
+$runningNetworkServers = 0;
 
 use English;
 my $windows = 0;
@@ -87,15 +101,13 @@ if ( !defined($ENV{'HOME'}) )
 
 chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
 
-my %yamaha = ( "System" => "1", "Power" => "0" ); # Busy and Off
-
 my $STX = hex2str("02");
 my $ETX = hex2str("03");
 
 my %Spec =
 ( "R0161" =>
   { "Configuration" =>
-    { "System" => { "OK" => "0" , "Busy" => "1" },
+    { "System" => { "OK" => "0" , "Busy" => "1" , "OFF" => "2" },
       "Power" => { "OFF" => "0" , "ON" => "1" },
 	  "Input" => [ "PHONO" , "CD" , "TUNER" , "CD-R" , "MD/TAPE" , "DVD" , "D-TV/LD" , "CABLE/SAT" , "SAT" , "VCR1" , "VCR2/DVR" , "VCR3" , "V-AUX" ],
       "OffOn" => [ "OFF" , "ON" ],
@@ -221,16 +233,22 @@ my %Spec =
       "GuardStatus" => ["No" , "System" , "Setting" ],
 	  "00" => { "00" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};",
                 "01" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};",
-                "02" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};"
+                "02" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};",
+	            "exec" => "\$error .= \"ERROR: Invalid system status \$rcmd.\n\";"
       },
-      "01" => "\$error .= \"ERROR: SYSTEM WARNING \$rdat.\n\";",
-      "10" => "assert(14>atoi(\$rdat));\$yamaha{'Playback'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Playback'}[\$rdat];\$info .= \"Playback = \$yamaha{'Playback'}\n\";",
-      "11" => "assert(12>atoi(\$rdat));\$yamaha{'Fs'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Fs'}[\$rdat];\$info .= \"Fs = \$yamaha{'Fs'}\n\";",
-      "12" => "assert(3>atoi(\$rdat));\$yamaha{'EX/ES'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'EX/ES'}[\$rdat];\$info .= \"EX/ES = \$yamaha{'EX/ES'}\n\";",
-      "13" => "assert(2>atoi(\$rdat));\$yamaha{'Thr/Bypass'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Thr/Bypass = \$yamaha{'Thr/Bypass'}\n\";",
-      "14" => "assert(2>atoi(\$rdat));\$yamaha{'REDdts'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'REDdts'}[\$rdat];\$info .= \"REDdts = \$yamaha{'REDdts'}\n\";",
-      "15" => "assert(2>atoi(\$rdat));\$yamaha{'TunerTuned'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"TunerTuned = \$yamaha{'TunerTuned'}\n\";",
-      "16" => "assert(2>atoi(\$rdat));\$yamaha{'Dts96/24'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Dts96/24 = \$yamaha{'Dts96/24'}\n\";",
+      "01" => { "00" => "\$error .= \"ERROR: SYSTEM WARNING: over current.\n\";",
+	            "01" => "\$error .= \"ERROR: SYSTEM WARNING: DC Detect.\n\";",
+	            "02" => "\$error .= \"ERROR: SYSTEM WARNING: power trouble.\n\";",
+	            "03" => "\$error .= \"ERROR: SYSTEM WARNING: over heat.\n\";",
+	            "exec" => "\$error .= \"ERROR: SYSTEM WARNING \$rcmd.\n\";"
+	  },
+#      "10" => "assert(14>atoi(\$rdat));\$yamaha{'Playback'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Playback'}[\$rdat];\$info .= \"Playback = \$yamaha{'Playback'}\n\";",
+#      "11" => "assert(12>atoi(\$rdat));\$yamaha{'Fs'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Fs'}[\$rdat];\$info .= \"Fs = \$yamaha{'Fs'}\n\";",
+#      "12" => "assert(3>atoi(\$rdat));\$yamaha{'EX/ES'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'EX/ES'}[\$rdat];\$info .= \"EX/ES = \$yamaha{'EX/ES'}\n\";",
+#      "13" => "assert(2>atoi(\$rdat));\$yamaha{'Thr/Bypass'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Thr/Bypass = \$yamaha{'Thr/Bypass'}\n\";",
+#      "14" => "assert(2>atoi(\$rdat));\$yamaha{'REDdts'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'REDdts'}[\$rdat];\$info .= \"REDdts = \$yamaha{'REDdts'}\n\";",
+#      "15" => "assert(2>atoi(\$rdat));\$yamaha{'TunerTuned'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"TunerTuned = \$yamaha{'TunerTuned'}\n\";",
+#      "16" => "assert(2>atoi(\$rdat));\$yamaha{'Dts96/24'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Dts96/24 = \$yamaha{'Dts96/24'}\n\";",
       "20" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((\$rdat>>2)^(\$rdat&1)); \$info .= setZ3Power(\$rdat&1);"
     }
   }
@@ -326,6 +344,53 @@ sub sendInit
 	$PortObj->write("0000020100");
 	rs232_flush();
 	print "\n";
+}
+
+sub printStatus
+{
+	local $out = $_[0];
+	if ( !defined $out ) { $out = STDOUT; }
+	local $long = $_[1];
+	if ( !defined $long ) { $long = 0; }
+
+	print $out "== === Yamaha ";
+	if ( $yamaha{'ModelID'} eq "R0161" ) { print $out "RX-V2400"; }
+	else { print $out $yamaha{'ModelID'}; }
+	print $out " Settings === ==\n";
+	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
+	{
+		for $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}} )
+		{
+			if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{$i} eq  $yamaha{'Power'})
+			{
+				print $out "Power: $i\n";
+			}
+		}
+				print $out "Power: $yamaha{'Power'}\n";
+		for $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}} )
+		{
+			if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{$i} eq  $yamaha{'System'})
+			{
+				print $out "System: $i\n";
+			}
+		}
+	}
+	print $out "          Zone 1    Zone 2    Zone 3\n";
+	printf $out "Input     %-9s %-9s %s\n",$yamaha{'Zone1Input'},$yamaha{'Zone2Input'},$yamaha{'Zone3Input'};
+	printf $out "Volume    %-9s %-9s %s\n",($yamaha{'Zone1Volume'}-199)/2,($yamaha{'Zone2Volume'}-199)/2,($yamaha{'Zone3Volume'}-199)/2;
+	printf $out "Mute      %-9s %-9s %s\n",$yamaha{'Zone1Mute'},$yamaha{'Zone2Mute'},$yamaha{'Zone3Mute'};
+
+	if ( $long )
+	{
+		print $out "\n";
+		printf $out "6chInput  %-9s %-9s %s\n",$yamaha{'6chInput'},"","";
+		printf $out "Effect    %-9s %-9s %s\n",$yamaha{'Effect'},"","";
+		printf $out "TunerPage %-9s %-9s %s\n",$yamaha{'TunerPage'},"","";
+		printf $out "TunerNum  %-9s %-9s %s\n",$yamaha{'TunerNum'},"","";
+		printf $out "NightMode %-9s %-9s %s\n",$yamaha{'NightMode'},"","";
+		printf $out "Speaker A %-9s %-9s %s\n",$yamaha{'SpeakerA'},"","";
+		printf $out "Speaker B %-9s %-9s %s\n",$yamaha{'SpeakerB'},"","";
+	}
 }
 
 $dcnfail = 0;
@@ -450,15 +515,7 @@ sub sendReady # getConfiguration
 			$yamaha{'Zone3Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,128,1)];
 			$yamaha{'Zone3Volume'} = atoi(substr($response,129,2));
 
-
-			print "== === Yamaha ";
-			if ( $yamaha{'ModelID'} eq "R0161" ) { print "RX-V2400"; }
-			else { print $yamaha{'ModelID'}; }
-			print " Settings === ==\n";
-			print "          Zone 1    Zone 2    Zone 3\n";
-			print "Input     $yamaha{'Zone1Input'}    $yamaha{'Zone2Input'}    $yamaha{'Zone3Input'}\n";
-			print "Volume    $yamaha{'Zone1Volume'}    $yamaha{'Zone2Volume'}    $yamaha{'Zone3Volume'}\n";
-			print "Mute      $yamaha{'Zone1Mute'}    $yamaha{'Zone2Mute'}    $yamaha{'Zone3Mute'}\n";
+			printStatus();
 		}
 	}
 	print "  data: ";
@@ -492,25 +549,134 @@ sub sendReady # getConfiguration
 	$dcnfail = 0;
 }
 
+sub processReport
+{
+	local($report) = @_;
+
+	print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
+
+	$pat = $STX."(.)(.)(..)(..)".$ETX;
+	while ( $report =~ s/$pat// )
+	{
+		print "recvd $1$2$3$4\n";
+		print "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
+		print "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
+		$rcmd = $3;
+		$rdat = $4;
+		print "rcmd $3 rdat $4\n";
+		if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
+		{
+			if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}) )
+			{
+				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}\n";
+				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat});
+			} elsif ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'}) ) {
+				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'}\n";
+				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'});
+			} else {
+				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
+				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
+			}
+			if ( "" ne $error )
+			{
+				print "===================================\n";
+				print "===  vv  !!!  ERRORS  !!!  vv   ===\n";
+				print "===================================\n";
+				print $error;
+				print "===================================\n";
+				print "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
+				print "===================================\n";
+				$error = "";
+			}
+			if ( "" ne $warning )
+			{
+				print "\nWarnings:\n";
+				print $warning;
+				print "\n";
+				$warning = "";
+			}
+			if ( "" ne $info )
+			{
+				print $info."\n";
+				$info = "";
+			}
+		}
+	}
+	print "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n";
+	return $report;
+}
+
 sub readReport
 {
+	return "";
 	print "Reading report.\n";
-	($count_in, $string_in) = rs232_read(8);
-	print "Got $count_in bytes back.\n";
-	#$string_in = "";
-	print "\n";
-	$string_in =~ s/(.)/$1 /g;
-	$string_in =~ s/$STX/STX/g;
-	$string_in =~ s/$ETX/ETX/g;
-	$retMsg = "OK - Received $count_in byte response.";
-	$retMsg = $retMsg."\n  - $string_in";
+	my $count_read = 0;
+	my $string_read = "";
+	my $string_in = "";
+	my $data = "";
+	my $retMsg = "";
+	($count_read, $string_read) = rs232_read(8);
+	while ( $count_read )
+	{
+		$string_in = $string_read;
+		$count_in = $count_read;
+		$data .= $string_read;
+		print "Got $count_in bytes back.\n";
+		print "\n";
+		$data = processReport($data);
+		$string_in =~ s/(.)/$1 /g;
+		$string_in =~ s/$STX/STX/g;
+		$string_in =~ s/$ETX/ETX/g;
+		$retMsg .= "OK - Received $count_in byte response.";
+		$retMsg .= "\n  - $string_in\n";
+		($count_read, $string_read) = rs232_read(8);
+	}
 	return $retMsg;
-	return "OK - Received $count_in byte response.";
+}
+
+sub stopNetworkServers
+{
+	{
+		lock $stopNetworkServers;
+		$stopNetworkServers = 1;
+	}
+
+	while ( 1 )
+	{
+		{
+			lock $runningNetworkServers;
+			if ( !$runningNetworkServers )
+			{
+				return;
+			}
+		}
+
+		IO::Socket::INET->new("localhost:$PORT");
+	}
 }
 
 sub sendControl # getReport
 {
 	local($inStr) = @_;
+
+	$_ = $inStr;
+	if ( /^reload/i ) {
+		stopNetworkServers();
+		undef $PortObj;
+		exec( "\"$app\"" );
+		exit;
+	} elsif ( /^shutdown/i ) {
+		stopNetworkServers();
+		undef $PortObj;
+		exit;
+	} elsif ( /^ready/i ) {
+		lock %yamaha;
+		print "Sending Ready...\n";
+		sendReady();
+		return "ok";
+	}
+
+	lock %yamaha;
 
 	$curCtrl = time;
 	if ( $curCtrl > ($lastCtrl + 10) )
@@ -527,7 +693,7 @@ sub sendControl # getReport
 	}
 	if ( $yamaha{'System'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'} )
 	{
-		return "error: No Control commands are allowed when the system status is not OK.\n";
+		return "error: No Control commands are allowed when the system status is not OK.  Status is currently $yamaha{'System'}.\n";
 	}
 
 	$source = $Spec{$yamaha{'ModelID'}}{'Control'};
@@ -595,6 +761,32 @@ sub sendControl # getReport
 	return readReport();
 }
 
+sub sendControlToServer
+{
+	#TODO: unsorted commands may not be fair or desireable.
+	local($inStr) = @_;
+
+	{
+		lock %output;
+		undef $output{$id};
+	}
+
+	{
+		lock %input;
+		$input{$id} = $inStr;
+	}
+
+	for (;;) # forever
+	{
+		{
+			lock %output;
+			if ( defined($output{$id}) ) { return $output{$id}; }
+		}
+		sleep(0.1);
+	}
+
+}
+
 sub writeMacroFile
 {
 	local($inFile) = @_;
@@ -605,6 +797,7 @@ sub writeMacroFile
 	}
 
 	if (open(MYFILE, ">$inFile")) {
+		lock %MacroLibrary;
 		for $key ( keys %MacroLibrary )
 		{
 			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
@@ -633,6 +826,7 @@ sub readMacroFile
 
 			if ( /^macro\s+(\S+)/i ) {
 				$macroName = $1;
+				lock %MacroLibrary;
 				print "reading macro '$macroName'\n";
 				$MacroLibrary{$macroName} = "";
 		
@@ -663,9 +857,16 @@ sub decode
 		s/^Control\s*//;
 		$command = $_;
 		#sendInit();
-		$status = sendControl($command);
+		$status = sendControlToServer($command);
 		print $status."\n";
-		print $client $status."\n";
+		if ( $client->connected() )
+		{
+			print $client $status."\n";
+		}
+	} elsif ( /^status/i ) {
+		sendControlToServer("ready");
+		lock %yamaha;
+		printStatus($client,1);
 	} elsif ( /^play/i ) {
 		s/play\s*//;
 		if ( $windows )
@@ -678,7 +879,7 @@ sub decode
 			system("killall shuffle.pl");
 			system("killall mpg123");
 			# Fork so this operation is untimed.
-			system("shuffle.pl \"$_\"&") or system("./shuffle.pl \"$_\"&");
+			system("shuffle.pl \"$_\"&") and system("./shuffle.pl \"$_\"&");
 		}
 	} elsif ( /^sleep/i ) {
 		s/sleep\s*//;
@@ -704,7 +905,7 @@ sub decode
 			$time += $1;
 		}
 		sleep $time;
-	} elsif ( /^test/i ) {
+	} elsif ( 0 && /^test/i ) {
 		$rcvd = 0;
             $string_in = "";
 		while ( 20 > $rcvd )
@@ -768,7 +969,10 @@ sub decode
 		}
 	} elsif ( /^macro\s+(\S+)/i ) {
 		$macroName = $1;
-		$MacroLibrary{$macroName} = "";
+		{
+			lock %MacroLibrary;
+			$MacroLibrary{$macroName} = "";
+		}
 
 		print $client "Recording macro '$macroName'...\n";
 		print $client "(use 'end' when finished)\n";
@@ -781,7 +985,10 @@ sub decode
 			s/\n//;
 			s/\r//;
 			s/^\s*//;
-			$MacroLibrary{$macroName} .= $_."\n";
+			{
+				lock %MacroLibrary;
+				$MacroLibrary{$macroName} .= $_."\n";
+			}
 		}
 
 		print $client "Recorded macro '$macroName' as follows:\n";
@@ -789,46 +996,67 @@ sub decode
 		writeMacroFile("default");
 	} elsif ( /^run\s+(\S+)/i ) {
 		my $macroName = $1;
-		if ( !defined($MacroLibrary{$macroName}) ) {
-			print $client "error: Unknown macro '$macroName'\n";
-			return;
+		my $macro = "";
+		{
+			lock %MacroLibrary;
+			if ( !defined($MacroLibrary{$macroName}) ) {
+				print $client "error: Unknown macro '$macroName'\n";
+				return;
+			}
+			$macro = $MacroLibrary{$macroName};
 		}
-		my $macro = $MacroLibrary{$macroName};
 		print "running macro '$macro'\n";
 		while ( $macro =~ s/(.+?)\n// )
 		{
 			print "running cmd '$1'\n";
 			decode($1);
-			print "Zone2Volume: $yamaha{'Zone2Volume'}\n";
 		}
-		print $client "Macro '$macroName' completed.\n";
+		if ( $client->connected() )
+		{
+			print $client "Macro '$macroName' completed.\n";
+		}
 	} elsif ( /^write\s+(\S+)/i ) {
+		lock %MacroLibrary;
 		writeMacroFile($1);
 	} elsif ( /^read\s+(\S+)/i ) {
 		readMacroFile($1);
 	} elsif ( /^clear\s+(\S+)/i ) {
+		lock %MacroLibrary;
 		%MacroLibrary = ();
 	} elsif ( /^debug\s+([0-9])/i ) {
 		$debug = $1;
  		return;
 	} elsif ( /^bye/i ) {
 		close $client;
+		{
+			lock %output;
+			undef $output{$id};
+		}
  		return;
 	} elsif ( /^reload/i ) {
 		close $client;
-		close $server;
-		undef $PortObj;
-		exec( "\"$app\"" );
+		{
+			lock %input;
+			$input{$id} = "reload";
+		}
+		exit;
 	} elsif ( /^shutdown/i ) {
 		close $client;
-		close $server;
-		undef $PortObj;
+		{
+			lock %input;
+			$input{$id} = "shutdown";
+		}
 		exit;
 	} elsif ( /^help/i ) {
 		s/help\s*//;
 		$help = $_;
 
-		$source = $Spec{$yamaha{'ModelID'}};
+		$modelID = "";
+		{ 
+			lock %yamaha;
+			$modelID = $yamaha{'ModelID'};
+		}
+		$source = $Spec{$modelID};
 		$cdr = $_;
 		$count = 0;
 		if ( "" eq $cdr )
@@ -882,7 +1110,7 @@ sub decode
 				if ( 0 == $options ) { print $client "  <none>\n"; }
 			}
 		}
-	} elsif ( /^advimpmode/i ) {
+	} elsif ( 0 && /^advimpmode/i ) {
 		# Advanced Input Mode allows arrow keys & history
 		$advInpMode = 1;
 		my $history = ("");
@@ -907,9 +1135,15 @@ sub decode
 	} elsif ( /^simimpmode/i ) {
 		$advInpMode = 0;
 	} else {
-		print $client "error: Couldn't understand command '$_'\n";
+		if ( $client->connected() )
+		{
+			print $client "error: Couldn't understand command '$_'\n";
+		}
 	}
-	print $client "\n";
+	if ( ($client->connected()) )
+	{
+		print $client "\n";
+	}
 }
 
 setupSerialPort();
@@ -943,7 +1177,7 @@ if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
 	}
 }
 
-my %MacroLibrary = ();
+%MacroLibrary = ();
 if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 	readMacroFile("$ENV{'HOME'}/.rxv2400_rxm");
 } elsif ( (!$windows) && -e "/etc/rxv2400_rxm" ) {
@@ -954,30 +1188,22 @@ if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 	readMacroFile("default.rxm");
 }
 
-$PORT = 9000;
-
-$server = IO::Socket::INET->new( Proto     => 'tcp',
-                                 LocalPort => $PORT,
-                                 Listen    => SOMAXCONN,
-                                 Reuse     => 1);
-
-die "sorry, couldn't setup server" unless $server;
-print "[RXV-Server 1.3.1.2 waiting for commands on port $PORT]\n";
-
-#$PortObj->write($STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
-
-while ($client = $server->accept()) 
+sub serviceClient
 {
-	$client->autoflush(1);
+	local($id) = $_[0];
+	local($client) = $_[1];
 
 	# Welcome message
-	print $client "rxv2400server 1.3.1.2 connection open.\n";
-	print $client "Accepting commands for $yamaha{'ModelID'}";
-	if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
+	print $client "RX-V2400 Server 1.a6 connection open.\n";
+	{
+		lock %yamaha;
+		print $client "Accepting commands for $yamaha{'ModelID'}";
+		if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
+	}
 	print $client " device.\n";
 	print $client "(type 'help' for documentation)\n";
 	
-    while (<$client>) 
+    while ($client->connected() && defined($_ = <$client>)) 
     {
     	next unless /\S/;       # blank line check
 
@@ -986,9 +1212,68 @@ while ($client = $server->accept())
 		s/^\s*//;
 		decode($_);
     }
-    #close $client;
-} 
+}
 
+sub startNetworkServer
+{
+	$server = IO::Socket::INET->new( Proto     => 'tcp',
+	                                 LocalPort => $PORT,
+	                                 Listen    => SOMAXCONN,
+	                                 Reuse     => 1);
+	
+	die "sorry, couldn't setup server" unless $server;
+	{
+		lock $runningNetworkServers;
+		$runningNetworkServers++;
+		print "[RXV-Server 1.a6:$runningNetworkServers waiting for commands on port $PORT]\n";
+	}
+
+	while ($client = $server->accept()) 
+	{
+		$client->autoflush(1);
+		lock $stopNetworkServers;
+		if ( $stopNetworkServers )
+		{
+			close $client;
+			close $server;
+			lock $runningNetworkServers;
+			$runningNetworkServers--;
+		} else {
+			threads->new(\&serviceClient,1, $client)
+		}
+	} 
+}
+
+while ( $numServersToRun )
+{
+	threads->new(\&startNetworkServer);
+	$numServersToRun--;
+}
+
+	#$PortObj->write($STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
+
+for (;;) # forever
+{
+	my $count = 0;
+
+	{
+		lock %input;
+	
+		for $id ( keys %input )
+		{
+			if ( defined($input{$id}) )
+			{
+				$count++;
+				my $result = sendControl($input{$id});
+				undef($input{$id});
+				lock %output;
+				$output{$id} = $result;
+			}
+		}
+	}
+
+	if ( $count < 2 ) { sleep(0.5); }
+}
 #close the port - when the server is shut down
 undef $PortObj;
 
