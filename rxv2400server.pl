@@ -4,7 +4,7 @@
 #   Control software for certain Yamaha A/V receivers.
 #   This is independently developed software with no relation to Yamaha.
 #
-#   Copyright 2006-2007 Mark Jerde
+#   Copyright 2006-2008 Mark Jerde
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -31,9 +31,11 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# version 0.6 of rxv2400server.pl ##################################
+my $version = "2.0";
+# version 2.0 of rxv2400server.pl ##################################
 ####################################################################
 ############## hacked by Mark Jerde, fall 05 (mjerde3@charter.net) #
+################# further hacked over the years through fall 2008 ##
 ####################################################################
 # based on the original version linxServer.pl 1.1 ##################
 # hacked by jörg dießl, fall 99 (joreg@testphase.at) ###############
@@ -59,17 +61,93 @@
 ####################################################################
 
 use 5.008;             # 5.8 required for stable threading
-#use strict;            # Amen
+use strict;            # Amen
 use warnings;          # Hallelujah
 use threads;           # pull in threading routines
 use threads::shared;   # and variable sharing routines
+use POSIX qw(strftime);
+
+my $timeformat = '[%b %d, %Y %H:%M:%S]';
+
+use English;
+use IO::Socket;
+use Net::hostent;
+use Sys::Hostname;
+
+$| = 1; # Set STDOUT to line buffering even when attached to a file.
+
+my $cmd = $0;
+print "cmd $cmd\n";
+
+my $endedcr = 1;
+sub logprint
+{
+	my $string = shift;
+	my ($package, $filename, $line) = caller;
+	my $header = strftime($timeformat,localtime)." $$.".threads->tid()." [$line] ";
+	if ( $endedcr ) { $string = $header.$string; }
+	$endedcr = ($string =~ s/\n$//)?1:0;
+	$string =~ s/\n/\n$header/g;
+	if ( $endedcr ) { $string .= "\n"; }
+	print $string;
+}
+
+sub assert
+{
+	return 1 if shift;
+	my ($package, $filename, $line) = caller;
+	logprint "assert failed at line $line.\nTerminating.\n";
+	exit;
+}
+
+my $windows = 0;
+if ( $OSNAME eq "MSWin32" ) { $windows = 1; }
+if ($OSNAME eq "MSWin32")
+{
+	eval "use Win32::SerialPort 0.15";
+	die "couldn't load module : $!\n$@" if ($@);
+} else {
+	eval "use Device::SerialPort 0.15";
+	die "couldn't load module : $!\n$@" if ($@);
+}
+
+## Put timestamps on every line of STDOUT
+#-- Doesn't play well with threads.
+#my $cmddir = $cmd;
+#$cmddir =~ s/\/[^\/]*$//;
+#eval "use lib '$cmddir'";
+#eval "use Logger";
+#unless ($@)
+#{
+#	open my $stdout, ">&STDOUT";
+#	close STDOUT;
+#	open (STDOUT, ">&:via(Logger)", $stdout)
+#	  or print "Unable to logify standard output: $!\n";
+#} else {
+#	print "couldn't load optional module : $!\n$@";
+#}
 
 my $PORT = 9000;
 my $numServersToRun = 1;
 
 # Shared resources:
-our %input  : shared; # Each client will use it's pid as a key to send commands.
+our %input  : shared; # Each command will have a new UID.
 our %output : shared; # Results will be placed here keyed by input pid.
+our $nextioUID : shared;
+$nextioUID = 1;
+our $needSendReady : shared;
+$needSendReady = 0;
+our $lastSend : shared;
+$lastSend = 0;
+our $lastRecv : shared;
+$lastRecv = 0;
+our %expect : shared;
+our %expectStimulus : shared;
+our $nextExpectUID : shared;
+$nextExpectUID = 1;
+our $inhibitReadReport : shared;
+our $requireConfiguration : shared;
+$requireConfiguration = 0;
 our %yamaha : shared;
 %yamaha = ( "System" => "1", "Power" => "0" ); # Busy and Off
 our %MacroLibrary : shared;
@@ -78,24 +156,12 @@ $stopNetworkServers = 0;
 our $runningNetworkServers : shared;
 $runningNetworkServers = 0;
 
-use English;
-my $windows = 0;
-if ( $OSNAME eq "MSWin32" ) { $windows = 1; }
-
-use if ($OSNAME eq "MSWin32"), Win32::SerialPort => 0.15;
-use if ($OSNAME ne "MSWin32"), Device::SerialPort => 0.15;
-use IO::Socket;
-use Net::hostent;
-use Sys::Hostname;
-
-$app = $0;
-print "app $app\n";
-
-my $debug = 0;
+our $debug : shared;
+$debug = 0;
 
 if ( !defined($ENV{'HOME'}) )
 {
-	print "warning: \$HOME is undefined.  Setting to current directory.\n";
+	logprint "warning: \$HOME is undefined.  Setting to current directory.\n";
 	$ENV{'HOME'} = ".";
 }
 
@@ -103,13 +169,76 @@ chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
 
 my $STX = hex2str("02");
 my $ETX = hex2str("03");
+my $DC1 = hex2str("11");
+my $DC2 = hex2str("12");
+my $DC3 = hex2str("13");
+my $DC4 = hex2str("14");
 
 my %Spec =
 ( "R0161" =>
   { "Configuration" =>
     { "System" => { "OK" => "0" , "Busy" => "1" , "OFF" => "2" },
       "Power" => { "OFF" => "0" , "ON" => "1" },
+	  # The zone power status is incorrect in the documentation.
+	  # And it's slightly different between Configuration messages
+	  # and Report messages.
+	  # It's silly.
+	  # Really.
+      "PowerDecode" => {
+	  	"0" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"1" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"2" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"3" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"4" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"5" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"6" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"7" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  },
+      "ReportPowerDecode" => {
+	  	"0" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"1" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"2" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'ON';    # Different
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"3" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"4" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'OFF';  # Different
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"5" => "\$yamaha{'Zone1Power'} = 'ON';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  	"6" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'ON';
+		        \$yamaha{'Zone3Power'} = 'OFF';",
+	  	"7" => "\$yamaha{'Zone1Power'} = 'OFF';
+		        \$yamaha{'Zone2Power'} = 'OFF';
+		        \$yamaha{'Zone3Power'} = 'ON';",
+	  },
+      "ReportPowerEncode" => "((\$z1&\$z2)?(\$z3?1:4):((\$z1^\$z2)?(\$z1?(\$z3?5:2):(\$z3?3:6)):(\$z3?7:0)))",
 	  "Input" => [ "PHONO" , "CD" , "TUNER" , "CD-R" , "MD/TAPE" , "DVD" , "D-TV/LD" , "CABLE/SAT" , "SAT" , "VCR1" , "VCR2/DVR" , "VCR3" , "V-AUX" ],
+	  "InputEncode" => { "PHONO" => "0" , "CD" => "1" , "TUNER" => "2" , "CD-R" => "3" , "MD/TAPE" => "4" , "DVD" => "5" , "D-TV/LD" => "6" , "CABLE/SAT" => "7" , "SAT" => "8" , "VCR1" => "9" , "VCR2/DVR" => "A" , "VCR3" => "B" , "V-AUX" => "C" },
       "OffOn" => [ "OFF" , "ON" ],
       "ABCDE" => [ "A" , "B" , "C" , "D" , "E" ],
       "InputMode" => [ "AUTO" , "DD/RF" , "DTS" , "DIGITAL" , "ANALOG" , "AAC" ],
@@ -162,10 +291,10 @@ my %Spec =
                           "VCR2/DVR" => "D7" ,
                           "VCR3" => "CE" ,
                           "V-AUX" => "D8" },
-        "Power" => { "Prefix" => "A1" , "ON" => "D" , "OFF" => "E" },
-        "Zone1Power" => { "Prefix" => "E7" , "ON" => "E" , "OFF" => "F" },
-        "Zone2Power" => { "Prefix" => "EB" , "ON" => "A" , "OFF" => "B" },
-        "Zone3Power" => { "Prefix" => "AE" , "ON" => "D" , "OFF" => "E" },
+        "Power" => { "Prefix" => "A1" , "ON" => "D" , "OFF" => "E" , "Expect" => 1 }, # Wait for Power because it blocks other ops.
+        "Zone1Power" => { "Prefix" => "E7" , "ON" => "E" , "OFF" => "F" , "Expect" => 1 }, # Same as above.
+        "Zone2Power" => { "Prefix" => "EB" , "ON" => "A" , "OFF" => "B" , "Expect" => 1 }, # Same as above.
+        "Zone3Power" => { "Prefix" => "AE" , "ON" => "D" , "OFF" => "E" , "Expect" => 1 }, # Same as above.
         "Zone3Mute" => { "Prefix" => "E" , "ON" => "2" , "OFF" => "6" , "Suffix" => "6" },
         "Zone3Volume" => { "Prefix" => "AF" , "Up" => "D" , "Down" => "E" },
         "Zone3Input" => { "Prefix" => "AF" ,
@@ -197,7 +326,7 @@ my %Spec =
                            "Eval" => "val" ,
                            "Up" => "\$yamaha{'Zone1Volume'}++;
                                     itoa(\$yamaha{'Zone1Volume'});" ,
-                           "Down" => "\$yamaha{'Zone1Volume'}++;
+                           "Down" => "\$yamaha{'Zone1Volume'}--;
                                       itoa(\$yamaha{'Zone1Volume'});",
                            "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
                                                     itoa(\$yamaha{'Zone1Volume'});"},
@@ -208,7 +337,7 @@ my %Spec =
                            "Eval" => "val" ,
                            "Up" => "\$yamaha{'Zone2Volume'}++;
                                     itoa(\$yamaha{'Zone2Volume'});" ,
-                           "Down" => "\$yamaha{'Zone2Volume'}++;
+                           "Down" => "\$yamaha{'Zone2Volume'}--;
                                       itoa(\$yamaha{'Zone2Volume'});",
                            "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
                                                     itoa(\$yamaha{'Zone2Volume'});"},
@@ -219,7 +348,7 @@ my %Spec =
                            "Eval" => "val" ,
                            "Up" => "\$yamaha{'Zone3Volume'}++;
                                     itoa(\$yamaha{'Zone3Volume'});" ,
-                           "Down" => "\$yamaha{'Zone3Volume'}++;
+                           "Down" => "\$yamaha{'Zone3Volume'}--;
                                       itoa(\$yamaha{'Zone3Volume'});",
                            "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
                                                     itoa(\$yamaha{'Zone3Volume'});"},
@@ -228,19 +357,145 @@ my %Spec =
         },
       }
     },
+    "Expect" =>
+    { "Operation" =>
+      { "Zone1Volume" => {  "Eval" => "val" , "Up" => "" , "Down" => "" },
+        "Zone1Mute" => {  "ON" => "2301" , "OFF" => "2300" },
+        "Zone1Input" => { "Eval" => "val" ,
+		                  "PHONO" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"0\"" ,
+                          "CD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"1\"" ,
+                          "TUNER" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"2\"" ,
+                          "CD-R" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"3\"" ,
+                          "MD/TAPE" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"4\"" ,
+                          "DVD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"5\"" ,
+                          "D-TV/LD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"6\"" ,
+                          "CABLE/SAT" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"7\"" ,
+                          "SAT" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"8\"" ,
+                          "VCR1" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"9\"" ,
+                          "VCR2/DVR" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"A\"" ,
+                          "VCR3" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"B\"" ,
+                          "V-AUX" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"C\"" },
+        "6chInput" => { "Eval" => "val" ,
+		                "ON" => "211\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" ,
+						"OFF" => "210\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" },
+        "InputMode" => { "Eval" => "val" ,
+                         "AUTO" => "" ,
+                         "DD/RF" => "" ,
+                         "DTS" => "" ,
+                         "DIGITAL" => "" ,
+                         "ANALOG" => "" ,
+                         "AAC" => "" },
+#        "Zone2Volume" => {  "Up" => "A" , "Down" => "B" },
+#        "Zone2Mute" => {  "ON" => "0" , "OFF" => "1" },
+#        "Zone2Input" => { 
+#                          "PHONO" => "D0" ,
+#                          "CD" => "D1" ,
+#                          "TUNER" => "D2" ,
+#                          "CD-R" => "D4" ,
+#                          "MD/TAPE" => "CF" ,
+#                          "DVD" => "CD" ,
+#                          "D-TV/LD" => "D9" ,
+#                          "CABLE/SAT" => "CC" ,
+#                          "SAT" => "CB" ,
+#                          "VCR1" => "D6" ,
+#                          "VCR2/DVR" => "D7" ,
+#                          "VCR3" => "CE" ,
+#                          "V-AUX" => "D8" },
+        "Power" => {  "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;my \$z2 = \$z1;my \$z3 = \$z1;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+        "Zone1Power" => {  "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+        "Zone2Power" => {  "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;my \$z2 = ('ON'eq\$car)?1:0;my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+        "Zone3Power" => {  "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;my \$z3 = ('ON'eq\$car)?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+#        "Zone3Mute" => {  "ON" => "2" , "OFF" => "6" },
+#        "Zone3Volume" => {  "Up" => "D" , "Down" => "E" },
+#        "Zone3Input" => { 
+#                          "PHONO" => "1" ,
+#                          "CD" => "2" ,
+#                          "TUNER" => "3" ,
+#                          "CD-R" => "5" ,
+#                          "MD/TAPE" => "4" ,
+#                          "DVD" => "C" ,
+#                          "D-TV/LD" => "6" ,
+#                          "CABLE/SAT" => "7" ,
+#                          "SAT" => "8" ,
+#                          "VCR1" => "9" ,
+#                          "VCR2/DVR" => "A" ,
+#                          "VCR3" => "B" ,
+#                          "V-AUX" => "0" },
+#        #...,
+#        "TunerPreset" => { 
+#                           "Page" => { "A" => "0" , "B" => "1" , "C" => "2" , "D" => "3" , "E" => "4" } ,
+#                           "Num" => { "1" => "5" , "2" => "6" , "3" => "7" , "4" => "8" , "5" => "9" , "6" => "A" , "7" => "B" , "8" => "C" } },
+#        #...,
+#        "SpeakerRelay" => { 
+#                            "A" => { "ON" => "B" , "OFF" => "C" } ,
+#                            "B" => { "ON" => "D" , "OFF" => "E" } }
+#      },
+#      "System" =>
+#      { 
+#        "Zone1Volume" => { 
+#                           "Eval" => "val" ,
+#                           "Up" => "\$yamaha{'Zone1Volume'}++;
+#                                    itoa(\$yamaha{'Zone1Volume'});" ,
+#                           "Down" => "\$yamaha{'Zone1Volume'}++;
+#                                      itoa(\$yamaha{'Zone1Volume'});",
+#                           "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
+#                                                    itoa(\$yamaha{'Zone1Volume'});"},
+#                           "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
+#                                                 itoa(\$yamaha{'Zone1Volume'});"}
+#        },
+#        "Zone2Volume" => { 
+#                           "Eval" => "val" ,
+#                           "Up" => "\$yamaha{'Zone2Volume'}++;
+#                                    itoa(\$yamaha{'Zone2Volume'});" ,
+#                           "Down" => "\$yamaha{'Zone2Volume'}++;
+#                                      itoa(\$yamaha{'Zone2Volume'});",
+#                           "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
+#                                                    itoa(\$yamaha{'Zone2Volume'});"},
+#                           "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
+#                                                 itoa(\$yamaha{'Zone2Volume'});"}
+#        },
+#        "Zone3Volume" => { 
+#                           "Eval" => "val" ,
+#                           "Up" => "\$yamaha{'Zone3Volume'}++;
+#                                    itoa(\$yamaha{'Zone3Volume'});" ,
+#                           "Down" => "\$yamaha{'Zone3Volume'}++;
+#                                      itoa(\$yamaha{'Zone3Volume'});",
+#                           "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
+#                                                    itoa(\$yamaha{'Zone3Volume'});"},
+#                           "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
+#                                                 itoa(\$yamaha{'Zone3Volume'});"}
+#        },
+      }
+    },
     "Report" =>
     { "ControlType" => [ "serial" , "IR" , "panel" , "system" , "encoder" ],
       "GuardStatus" => ["No" , "System" , "Setting" ],
-	  "00" => { "00" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};",
-                "01" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};",
-                "02" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};",
-	            "exec" => "\$error .= \"ERROR: Invalid system status \$rcmd.\n\";"
+	  "00" => { "Name" => "System",
+	            "00" => { "Message" => "OK",
+				          "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};"
+						},
+                "01" => { "Message" => "Busy",
+	                      "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};"
+	                    },
+                "02" => { "Message" => "Power Off",
+	                      "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};"
+	                    },
+	            "Eval" => "\$error .= \"ERROR: Invalid system status \$rcmd.\n\";"
       },
-      "01" => { "00" => "\$error .= \"ERROR: SYSTEM WARNING: over current.\n\";",
-	            "01" => "\$error .= \"ERROR: SYSTEM WARNING: DC Detect.\n\";",
-	            "02" => "\$error .= \"ERROR: SYSTEM WARNING: power trouble.\n\";",
-	            "03" => "\$error .= \"ERROR: SYSTEM WARNING: over heat.\n\";",
-	            "exec" => "\$error .= \"ERROR: SYSTEM WARNING \$rcmd.\n\";"
+      "01" => { "Name" => "Warning",
+	            "00" => { "Message" => "Over current.",
+	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over current.\n\";"
+	                    },
+	            "01" => { "Message" => "DC detect.",
+	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: DC Detect.\n\";"
+	                    },
+	            "02" => { "Message" => "Power trouble.",
+	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: power trouble.\n\";"
+	                    },
+	            "03" => { "Message" => "Over heat.",
+	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over heat.\n\";"
+	                    },
+	            "Eval" => "\$error .= \"ERROR: SYSTEM WARNING \$rcmd.\n\";"
 	  },
 #      "10" => "assert(14>atoi(\$rdat));\$yamaha{'Playback'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Playback'}[\$rdat];\$info .= \"Playback = \$yamaha{'Playback'}\n\";",
 #      "11" => "assert(12>atoi(\$rdat));\$yamaha{'Fs'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Fs'}[\$rdat];\$info .= \"Fs = \$yamaha{'Fs'}\n\";",
@@ -249,7 +504,28 @@ my %Spec =
 #      "14" => "assert(2>atoi(\$rdat));\$yamaha{'REDdts'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'REDdts'}[\$rdat];\$info .= \"REDdts = \$yamaha{'REDdts'}\n\";",
 #      "15" => "assert(2>atoi(\$rdat));\$yamaha{'TunerTuned'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"TunerTuned = \$yamaha{'TunerTuned'}\n\";",
 #      "16" => "assert(2>atoi(\$rdat));\$yamaha{'Dts96/24'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Dts96/24 = \$yamaha{'Dts96/24'}\n\";",
-      "20" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((\$rdat>>2)^(\$rdat&1)); \$info .= setZ3Power(\$rdat&1);"
+      "20" => { "Name" => "Power",
+	            # Spec is wrong for this encoding.
+				# Correct is as follows.  + = on
+	            # 123 #
+			    # --- 0
+			    # +++ 1
+			    # +-- 2
+			    # -++ 3
+			    # ++- 4
+			    # +-+ 5
+			    # -+- 6
+			    # --+ 7
+	            "Eval" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);{lock \%yamaha; \$yamaha{'Power'} = \$rdat?1:0; }\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((6==\$rdat||4==\$rdat||3==\$rdat||1==\$rdat)?1:0); \$info .= setZ3Power(\$rdat&1);"
+	          },
+#      "21" => { },
+#      "22" => { },
+#      "23" => { },
+#      "24" => { },
+#      "25" => { },
+      "26" => { "Name" => "Master Volume",
+	            "Eval" => "\$yamaha{'Zone1Volume'} = atoi(\$rdat);"
+	          }
     }
   }
 );
@@ -271,14 +547,117 @@ my $PortName = "COM1";
 if ( !$windows ) { $PortName = "/dev/ttyS0"; }
 my $PortObj;
 
+# SerialPort probably isn't threaded, so protect it with a single-function
+# locking interface.
+our @serialInput : shared;
+our @serialOutput : shared;
+our $serialComSemaphore : shared;
+$serialComSemaphore = -2; # Init
+
+sub serialThread
+{
+	my $cmd = shift;
+	if ( ($cmd ne "setup")
+	   &&($cmd ne "write")
+	   &&($cmd ne "read")
+	   &&($cmd ne "destroy") )
+	{
+		print STDERR "Invalid serialThread command.\n";
+		return;
+	}
+	{
+		logprint ' lock $serialComSemaphore;'."\n" if $debug;
+		lock $serialComSemaphore;
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		cond_wait($serialComSemaphore) until $serialComSemaphore == 0; # Idle
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		undef @serialInput;
+		exit if ( defined($serialOutput[0]) && ($serialOutput[0] eq "destroyed") );
+		logprint ' didn\'t exit'."\n" if $debug;
+		@serialInput = ($cmd,shift);
+		$serialComSemaphore = -1; # Thread
+		cond_broadcast($serialComSemaphore);
+		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+	}
+	{
+		logprint ' lock $serialComSemaphore;'."\n" if $debug;
+		lock $serialComSemaphore;
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		cond_wait($serialComSemaphore) until $serialComSemaphore == 1; # Function
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		my @output = @serialOutput;
+		$serialComSemaphore = 0; # Idle
+		cond_broadcast($serialComSemaphore);
+		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		return @output;
+	}
+}
+
+async { # serial thread loop
+	{
+		lock $serialComSemaphore;
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		$serialComSemaphore = 0; # Idle
+		cond_broadcast($serialComSemaphore);
+		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+	}
+	for (;;) # forever
+	{
+		lock $serialComSemaphore;
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		cond_wait($serialComSemaphore) until $serialComSemaphore == -1; # Thread
+		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		undef @serialOutput;
+		if ( $serialInput[0] eq "setup" )
+		{
+			setupSerialPort();
+			$lastSend = time;
+			$lastRecv = time;
+		}
+		elsif ( $serialInput[0] eq "write" )
+		{
+			logprint "\$PortObj->write($serialInput[1]);\n" if $debug;
+			$PortObj->write($serialInput[1]);
+			$lastSend = time;
+		}
+		elsif ( $serialInput[0] eq "read" )
+		{
+			logprint "\$PortObj->read($serialInput[1]);\n" if $debug;
+			@serialOutput = $PortObj->read($serialInput[1]);
+			logprint "$serialOutput[0] , $serialOutput[1]\n" if $debug;
+			$lastRecv = time if $serialOutput[0] != 0;
+		}
+		elsif ( $serialInput[0] eq "destroy" )
+		{
+			undef $PortObj;
+			@serialOutput = ("destroyed");
+		}
+		$serialComSemaphore = 1; # Function
+		cond_broadcast($serialComSemaphore);
+		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
+		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+	}
+};
+
 my $info = "";
 my $warning = "";
 my $error = "";
 
-$lastCtrl = 0;
+my $lastCtrl = 0;
 
-sub setupSerialPort
+sub setupSerialPort # Only called from the serial thread loop.
 {
+	undef $PortObj;
+
 	if ( $windows )
 	{
 		$PortObj = new Win32::SerialPort ($PortName)
@@ -287,41 +666,46 @@ sub setupSerialPort
 		$PortObj = new Device::SerialPort ($PortName)
 		       || die "Can't open $PortName: $^E\n";
 	}
-	
-	$PortObj->user_msg(ON);
+	# Not sure if this works on Win32::SerialPort, so I'll
+	# keep it out here until I find out it needs to move.
+	# Make the buffer hot so we send our command when we send
+	# it rather than waiting for a bus load of commands.
+	select((select($PortObj->{'HANDLE'}), $|=1)[0]);
+
+	$PortObj->user_msg("ON");
 	$PortObj->databits(8);
 	$PortObj->baudrate(9600);
 	$PortObj->parity("none");
 	$PortObj->handshake("none");
-	$PortObj->parity_enable(F);
+	$PortObj->parity_enable("F");
 	$PortObj->stopbits(1);
 	$PortObj->buffers(4096, 4096);
 	$PortObj->dtr_active(1);
-	$PortObj->rts_active(1);            
-	
-	if ($PortObj->write_settings != 1) 
+	$PortObj->rts_active(1);
+
+	if ($PortObj->write_settings != 1)
 	{
-		print "sorry, couldn't setup serial port";
+		logprint "sorry, couldn't setup serial port\n";
 	}
 }
 
 sub rs232_read
 {
-	my $length = $_[0];
+	my $length = shift;
 	my $count_in = 0;
 	my $string_in = "";
 	my $timeout = 0;
 
-	print "read $length\n";
-	($count_in, $string_in) = $PortObj->read($length);
+	#logprint "read $length\n";
+	($count_in, $string_in) = serialThread("read",$length);
 
 	if ( ($count_in < $length) && ($timeout < 5) )
 	{
 		$timeout++;
 		sleep(1);
 
-		print "read $length - $count_in t$timeout\n";
-		($ncount_in, $nstring_in) = $PortObj->read($length-$count_in);
+		#logprint "read $length - $count_in t$timeout\n";
+		my ($ncount_in, $nstring_in) = serialThread("read",$length-$count_in);
 		$count_in += $ncount_in;
 		$string_in .= $nstring_in;
 	}
@@ -331,165 +715,497 @@ sub rs232_read
 
 sub rs232_flush
 {
-	print "Flushing rs232 read buffer.\n";
-	($count_in, $string_in) = $PortObj->read(275);
-	print "Got $count_in bytes back.\n";
-	$string_in = "";
-	if ( 275 == $count_in ) { rs232_flush(); }
+	logprint "Flushing rs232 read buffer.\n";
+	my ($count_in, $string_in) = (275,"");
+	while ( 275 == $count_in )
+	{
+		($count_in, $string_in) = serialThread("read",275);
+		logprint "Got $count_in bytes back.\n";
+	}
 }
 
 sub sendInit
 {
-	print "Sending undocumented init...\n";
-	$PortObj->write("0000020100");
+	logprint ' lock $inhibitReadReport;'."\n" if $debug;
+	lock $inhibitReadReport;
+	logprint " locked inhibitReadReport\n" if $debug;
+	logprint "Sending undocumented init...\n";
+	serialThread("write","0000020100");
 	rs232_flush();
-	print "\n";
+	logprint "\n";
+	logprint " unlocked inhibitReadReport\n" if $debug;
 }
 
 sub printStatus
 {
-	local $out = $_[0];
-	if ( !defined $out ) { $out = STDOUT; }
-	local $long = $_[1];
+	my $out = shift;
+	if ( !defined $out ) { logprint "Losing STDOUT timestamp control.\n"; $out = (*STDOUT); }
+	my $long = shift;
 	if ( !defined $long ) { $long = 0; }
 
 	print $out "== === Yamaha ";
 	if ( $yamaha{'ModelID'} eq "R0161" ) { print $out "RX-V2400"; }
 	else { print $out $yamaha{'ModelID'}; }
 	print $out " Settings === ==\n";
-	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
+	for my $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}} )
 	{
-		for $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}} )
+		if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{$i} eq $yamaha{'Power'})
 		{
-			if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{$i} eq  $yamaha{'Power'})
-			{
-				print $out "Power: $i\n";
-			}
+			print $out "Power: $i\n";
 		}
-				print $out "Power: $yamaha{'Power'}\n";
-		for $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}} )
+	}
+	for my $i ( keys %{$Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}} )
+	{
+		if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{$i} eq $yamaha{'System'})
 		{
-			if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{$i} eq  $yamaha{'System'})
-			{
-				print $out "System: $i\n";
-			}
+			print $out "System: $i\n";
 		}
 	}
 	print $out "          Zone 1    Zone 2    Zone 3\n";
-	printf $out "Input     %-9s %-9s %s\n",$yamaha{'Zone1Input'},$yamaha{'Zone2Input'},$yamaha{'Zone3Input'};
-	printf $out "Volume    %-9s %-9s %s\n",($yamaha{'Zone1Volume'}-199)/2,($yamaha{'Zone2Volume'}-199)/2,($yamaha{'Zone3Volume'}-199)/2;
-	printf $out "Mute      %-9s %-9s %s\n",$yamaha{'Zone1Mute'},$yamaha{'Zone2Mute'},$yamaha{'Zone3Mute'};
-
-	if ( $long )
+	printf $out "Power     %-9s %-9s %s\n",$yamaha{'Zone1Power'},$yamaha{'Zone2Power'},$yamaha{'Zone3Power'};
+	if ( $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{"OFF"} ne $yamaha{'Power'})
 	{
-		print $out "\n";
-		printf $out "6chInput  %-9s %-9s %s\n",$yamaha{'6chInput'},"","";
-		printf $out "Effect    %-9s %-9s %s\n",$yamaha{'Effect'},"","";
-		printf $out "TunerPage %-9s %-9s %s\n",$yamaha{'TunerPage'},"","";
-		printf $out "TunerNum  %-9s %-9s %s\n",$yamaha{'TunerNum'},"","";
-		printf $out "NightMode %-9s %-9s %s\n",$yamaha{'NightMode'},"","";
-		printf $out "Speaker A %-9s %-9s %s\n",$yamaha{'SpeakerA'},"","";
-		printf $out "Speaker B %-9s %-9s %s\n",$yamaha{'SpeakerB'},"","";
-	}
-}
+		printf $out "Input     %-9s %-9s %s\n",$yamaha{'Zone1Input'},$yamaha{'Zone2Input'},$yamaha{'Zone3Input'};
+		printf $out "Volume    %-9s %-9s %s\n",($yamaha{'Zone1Volume'}-199)/2,($yamaha{'Zone2Volume'}-199)/2,($yamaha{'Zone3Volume'}-199)/2;
+		printf $out "Mute      %-9s %-9s %s\n",$yamaha{'Zone1Mute'},$yamaha{'Zone2Mute'},$yamaha{'Zone3Mute'};
 
-$dcnfail = 0;
-sub sendReady # getConfiguration
-{
-	rs232_flush();
-	print "Sending Ready command...\n";
-	$PortObj->write("000");
-
-	($count_in, $response) = rs232_read(1);
-	print "Got $count_in bytes, reading DCn...\n";
-	if ( 0 == $count_in )
-	{
-		$response = "N";
-	}
-
-	# DCn
-	$response =~ s/(.)//;
-	$_ = str2hex($1);
-	if ( m/11/ ) { print(" DC1\n"); }
-	elsif ( m/12/ ) { print(" DC2\n"); }
-	elsif ( m/13/ ) { print(" DC3\n"); }
-	elsif ( m/14/ ) { print(" DC4\n"); }
-	else
-	{
-		print "error: No DCn... ";
-		if ( 0 == $dcnfail )
+		if ( $long )
 		{
-			$dcnfail++;
-			print "reloading serial interface.\n";
-			undef $PortObj;
-			setupSerialPort();
-			return sendReady();
-		} elsif ( 1 == $dcnfail ) {
-			$dcnfail++;
-			print "sleeping... ";
-			sleep 30;
-			print "reloading serial interface.\n";
-			undef $PortObj;
-			setupSerialPort();
-			return sendReady();
-		} else {
-			print "failing.\n" and exit;
+			print $out "\n";
+			printf $out "6chInput  %-9s %-9s %s\n",$yamaha{'6chInput'},"","";
+			printf $out "Effect    %-9s %-9s %s\n",$yamaha{'Effect'},"","";
+			printf $out "TunerPage %-9s %-9s %s\n",$yamaha{'TunerPage'},"","";
+			printf $out "TunerNum  %-9s %-9s %s\n",$yamaha{'TunerNum'},"","";
+			printf $out "NightMode %-9s %-9s %s\n",$yamaha{'NightMode'},"","";
+			printf $out "Speaker A %-9s %-9s %s\n",$yamaha{'SpeakerA'},"","";
+			printf $out "Speaker B %-9s %-9s %s\n",$yamaha{'SpeakerB'},"","";
 		}
 	}
-	
-	($count_in, $response) = rs232_read(8);
-	print "Got $count_in bytes, reading Configuration...\n";
-	if ( $count_in < 8 ) { print "Failed to read Configuration. ($count_in)\n" and exit; }
-	print " Received Configuration...\n";
-	# 5B Model ID
-	$yamaha{'ModelID'} = substr($response,0,5);
-	print "  model ID: ".$yamaha{'ModelID'};
-	if ( $yamaha{'ModelID'} eq "R0161" ) { print " (RX-V2400)"; }
-	print "\n"; $response =~ s/.....//;
-	# 1B Software Version
-	print "  software version: ".substr($response,0,1)."\n";
-	$response =~ s/.//;
-	# 2B data length
-	$dataLength = substr($response,0,2);
-	$response =~ s/..//;
-	print "  data length: 0x".$dataLength;
-	$dataLength = atoi($dataLength);
-	print " ($dataLength)\n";
-	# up to 256B data
-	if ( $dataLength < 9 )
+	logprint "Restoring STDOUT timestamp control (if lost).\n";
+}
+
+my $dcnfail = 0;
+sub sendReady # getConfiguration
+{
 	{
-		print "error: Data length less than minimum.\n";
-		print "reloading serial interface.\n";
-		$dcnfail++;
-		return sendReady();
-	} else {
-		($count_in, $response) = rs232_read($dataLength);
-		while ( $dataLength > $count_in )
+		logprint ' lock $inhibitReadReport;'."\n" if $debug;
+		lock $inhibitReadReport;
+		logprint " locked inhibitReadReport\n" if $debug;
+		rs232_flush();
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		cond_wait($requireConfiguration) until $requireConfiguration == 0;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = 1;
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		logprint " unlocked inhibitReadReport\n" if $debug;
+	}
+
+	logprint "Sending Ready command...\n";
+	serialThread("write","000");
+
+	# Wait for configuration read.
+	my $failed = 0;
+	{
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		cond_wait($requireConfiguration) until $requireConfiguration != 1;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		if ( $requireConfiguration == -1 )
 		{
-			print "warning: Ready response missing ".($dataLength - ($count_in - 12))." bytes.\n";
-			($ncount_in, $nresponse) = rs232_read($dataLength-$count_in);
-			$count_in += $ncount_in;
-			$response .= $nresponse;
-			if ( $ncount_in == 0 )
+			$failed = 1;
+			$requireConfiguration = 0;
+		}
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+	}
+	if ( !$failed )
+	{
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		cond_wait($requireConfiguration) until $requireConfiguration != 2;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		if ( $requireConfiguration == -2 )
+		{
+			$failed = 1;
+			$requireConfiguration = 0;
+		}
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+	}
+	if ( $failed )
+	{
+		if ( 4 < $dcnfail )
+		{
+			logprint "failing.\n" and exit;
+		} elsif ( 0 != $dcnfail ) {
+			logprint "sleeping... ";
+			sleep 30;
+		}
+		$dcnfail++;
+		#logprint "reloading serial interface.\n";
+		#serialThread("setup");
+		logprint "Trying ready commmand...\n";
+		logprint " unlocked inhibitReadReport\n" if $debug;
+		return sendReady();
+	}
+	$dcnfail = 0;
+}
+
+sub processReport
+{
+	my $report = shift;
+
+	my $info = "";
+	my $warning = "";
+	my $error = "";
+
+	logprint ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
+
+	my $pat = $STX."(.)(.)(..)(..)".$ETX;
+	while ( $report =~ s/$pat// )
+	{
+		logprint "recvd $1 $2 $3 $4\n";
+		logprint "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
+		logprint "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
+		my $rcmd = $3;
+		my $rdat = $4;
+		logprint "rcmd $3 rdat $4\n";
+		my $expected = 0;
+		foreach my $i ( sort { $a <=> $b } keys %expect )
+		{
+			if ( $expect{$i} eq "$rcmd$rdat" )
 			{
-				print "error: Couldn't read ready data.\n";
-				print "reloading serial interface.\n";
-				$dcnfail++;
-				return sendReady();
+				$expected = 1;
+				logprint ' lock %expect;'."\n" if $debug;
+				lock %expect;
+				logprint " locked expect\n" if $debug;
+				# Clear unhandled prior expects.
+				foreach my $j ( sort { $a <=> $b } keys %expect )
+				{
+					last if ( $i == $j );
+					logprint "Expected report, $expect{$j}, was not found.\n";
+					delete($expect{$j});
+				}
+				# Clear retry-stimulus, including ours.
+				foreach my $j ( sort { $a <=> $b } keys %expectStimulus )
+				{
+					last if ( $i < $j );
+					delete($expectStimulus{$j});
+				}
+				logprint "Found expected report, $expect{$i}.\n";
+				delete($expect{$i});
+				logprint ' cond_broadcast %expect;'."\n" if $debug;
+				cond_broadcast(%expect);
+				logprint " unlocked expect\n" if $debug;
+				last;
+			}
+		}
+		if ( !$expected )
+		{
+			logprint "Found unexpected report, $rcmd$rdat.\n";
+		}
+		if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
+		{
+			if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'Name'}) )
+			{
+				logprint "Name: ".$Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'Name'}."\n";
+			}
+			if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}) )
+			{
+				if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}{'Message'}) )
+				{
+					logprint ": ".$Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}{'Message'}."\n";
+				}
+				if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}{'Eval'}) )
+				{
+					my $cmd = $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}{'Eval'};
+					logprint "eval $cmd\n";
+					eval($cmd);
+				}
+			} elsif ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'Eval'}) ) {
+				logprint " (value: $rdat)\n";
+				my $cmd = $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'Eval'};
+				logprint "eval $cmd\n";
+				eval($cmd);
+			} else {
+				logprint "\n";
+				logprint "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
+				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
+			}
+			if ( "" ne $error )
+			{
+				logprint "===================================\n";
+				logprint "===  vv  !!!  ERRORS  !!!  vv   ===\n";
+				logprint "===================================\n";
+				logprint $error;
+				logprint "===================================\n";
+				logprint "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
+				logprint "===================================\n";
+			}
+			if ( "" ne $warning )
+			{
+				logprint "\nWarnings:\n";
+				logprint $warning;
+				logprint "\n";
+			}
+			if ( "" ne $info )
+			{
+				logprint $info."\n";
 			}
 		}
 	}
-	print "Got $count_in bytes, reading Configuration Data...\n";
+	logprint "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n";
+	return $report;
+}
+
+sub dataToPrint
+{
+	my $string = shift;
+	$string =~ s/(.)/$1 /g;
+	$string =~ s/$DC1/DC1/g;
+	$string =~ s/$DC2/DC2/g;
+	$string =~ s/$DC3/DC3/g;
+	$string =~ s/$DC4/DC4/g;
+	$string =~ s/$STX/STX/g;
+	$string =~ s/$ETX/ETX/g;
+	return $string;
+}
+
+sub readData
+{
+	logprint ' lock $inhibitReadReport; # Not that we really inhibit ourselves, but it lets us finish.'."\n" if $debug;
+	lock $inhibitReadReport; # Not that we really inhibit ourselves, but it lets us finish.
+	logprint " locked inhibitReadReport\n" if $debug;
+
+	my ($count_read, $string_read) = rs232_read(1);
+	if ( ($requireConfiguration==1) && !$count_read )
+	{
+		sleep 1;
+		($count_read, $string_read) = rs232_read(1);
+	}
+
+	if ( ($requireConfiguration==1) )
+	{
+		if ( !($count_read && ($string_read =~ m/$DC2/)) )
+		{
+			if ( $count_read )
+			{
+				logprint "Received ".dataToPrint($string_read)."\n";
+			}
+			logprint "error: No DC2... ";
+			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			lock $requireConfiguration;
+			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			$requireConfiguration = -1;
+			logprint ' cond_signal $requireConfiguration;'."\n" if $debug;
+			cond_signal($requireConfiguration);
+			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+			return 1;
+		} else {
+			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			lock $requireConfiguration;
+			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			$requireConfiguration = 2;
+			logprint ' cond_signal $requireConfiguration;'."\n" if $debug;
+			cond_signal($requireConfiguration);
+			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		}
+	}
+
+	if ( $count_read )
+	{
+		if ( $string_read =~ m/$DC2/ )
+		{
+			return 1 + readConfiguration();
+		}
+		elsif ( $string_read =~ m/$STX/ )
+		{
+			return 1 + readReport();
+		}
+	} else {
+		return 0;
+	}
+}
+
+sub readReport
+{
+	#logprint "Reading report.\n";
+	my ($count_read, $string_read) = rs232_read(7);
+
+	$count_read++;
+	$string_read = $STX.$string_read;
+
+	my $data = $string_read;
+
+	logprint "OK - Received $count_read byte response.\n";
+	$string_read = dataToPrint $string_read;
+	logprint "   - $string_read\n";
+
+	if ( $count_read < 8 )
+	{
+		logprint "malformed report.  Only $count_read bytes.\n";
+		exit;
+	}
+	if ( !($data =~ m/$ETX$/) )
+	{
+		logprint "malformed report.  Not ETX terminated.\n";
+		exit;
+	}
+
+	$data = processReport($data);
+
+	return $count_read - 1;
+}
+
+sub readConfiguration
+{
+	my $bytes_read = 0;
+
+	my ($count_in, $response) = rs232_read(8);
+	$bytes_read += $count_in;
+	logprint "Got $count_in bytes, reading Configuration...\n";
+	if ( $count_in < 8 )
+	{
+		logprint "error: Configuration too short. ($count_in of 8 bytes)\n" and exit;
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = -2;
+		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		cond_broadcast($requireConfiguration);
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		return $bytes_read;
+	}
+	logprint " Received Configuration...\n";
+	# 5B Model ID
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+ 		$response =~ s/(.....)//;
+		$yamaha{'ModelID'} = $1;
+		logprint " unlocked yamaha\n" if $debug;
+	}
+	logprint "  model ID: ".$yamaha{'ModelID'};
+	if ( $yamaha{'ModelID'} eq "R0161" ) { logprint " (RX-V2400)"; }
+	logprint "\n";
+	# 1B Software Version
+	$response =~ s/(.)//;
+	logprint "  software version: $1\n";
+	# 2B data length
+	$response =~ s/(..)//;
+	my $dataLength = $1;
+	logprint "  data length: 0x".$dataLength;
+	$dataLength = atoi($dataLength);
+	logprint " ($dataLength)\n";
+	# up to 256B data
+	if ( $dataLength < 9 )
+	{
+		logprint "error: Data length less than minimum.\n";
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = -2;
+		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		cond_broadcast($requireConfiguration);
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		return $bytes_read;
+	}
+
+	($count_in, $response) = rs232_read($dataLength);
+	$bytes_read += $count_in;
+	while ( $dataLength > $count_in )
+	{
+		logprint "warning: Ready response missing ".($dataLength - ($count_in - 12))." bytes.\n";
+		my ($ncount_in, $nresponse) = rs232_read($dataLength-$count_in);
+		$bytes_read += $ncount_in;
+		$count_in += $ncount_in;
+		$response .= $nresponse;
+		if ( $ncount_in == 0 )
+		{
+			logprint "error: Couldn't read ready data.\n";
+			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			lock $requireConfiguration;
+			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			$requireConfiguration = -2;
+			logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+			cond_broadcast($requireConfiguration);
+			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+			return $bytes_read;
+		}
+	}
+
+	logprint "Got $count_in bytes, reading Configuration Data...\n";
 	# Data 0 through 6 are "Don't care" per spec
-	$yamaha{'System'} = substr($response,7,1);
-	$yamaha{'Power'} = substr($response,8,1);
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+		$yamaha{'System'} = substr($response,7,1);
+		$yamaha{'Power'} = substr($response,8,1);
+		logprint " unlocked yamaha\n" if $debug;
+	}
+	if ( defined($Spec{$yamaha{'ModelID'}}{'Configuration'}{'PowerDecode'}{$yamaha{'Power'}}) )
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+		eval($Spec{$yamaha{'ModelID'}}{'Configuration'}{'PowerDecode'}{$yamaha{'Power'}});
+					logprint "-$yamaha{'Zone1Power'}-$yamaha{'Zone2Power'}-$yamaha{'Zone3Power'}-\n";
+		logprint " unlocked yamaha\n" if $debug;
+	} else {
+		logprint "error: Power data is invalid.\n";
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = -2;
+		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		cond_broadcast($requireConfiguration);
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		return $bytes_read;
+	}
+
+	# The zone power encoding is a defect in the RX-V2400 receiver, so just
+	# save as ON or OFF.
+	if ( $yamaha{'Power'} ne "0" ) { logprint ' lock %yamaha;'."\n" if $debug;lock %yamaha;logprint " locked yamaha\n" if $debug; $yamaha{'Power'} = 1;logprint " locked yamaha\n" if $debug; }
+
 	if ( $yamaha{'System'} eq "0" )
 	{
-		if ( $yamaha{'Power'} eq "0" ) {
-			if ( $dataLength != 9 ) { print "error: Data length greater than expected.\n" and exit; }
+		if ( !$yamaha{'Power'} ) {
+			if ( $dataLength != 9 )
+			{
+				logprint "error: Data length greater than expected.\n";
+				logprint ' lock $requireConfiguration;'."\n" if $debug;
+				lock $requireConfiguration;
+				logprint ' locked $requireConfiguration;'."\n" if $debug;
+				$requireConfiguration = -2;
+				logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+				cond_broadcast($requireConfiguration);
+				logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+				return $bytes_read;
+			}
 		} else {
-			if ( $dataLength != 138 ) { print "error: Data length not as expected.\n" and exit; }
+			if ( $dataLength != 138 )
+			{
+				logprint "error: Data length not as expected.\n";
+				logprint ' lock $requireConfiguration;'."\n" if $debug;
+				lock $requireConfiguration;
+				logprint ' locked $requireConfiguration;'."\n" if $debug;
+				$requireConfiguration = -2;
+				logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+				cond_broadcast($requireConfiguration);
+				logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+				return $bytes_read;
+			}
 
+			logprint ' lock %yamaha;'."\n" if $debug;
+			lock %yamaha;
+			logprint " locked yamaha\n" if $debug;
 			$yamaha{'Zone1Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,9,1)];
 			$yamaha{'6chInput'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,10,1)];
 			$yamaha{'InputMode'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'InputMode'}[substr($response,11,1)];
@@ -516,139 +1232,77 @@ sub sendReady # getConfiguration
 			$yamaha{'Zone3Volume'} = atoi(substr($response,129,2));
 
 			printStatus();
+			logprint " unlocked yamaha\n" if $debug;
 		}
 	}
-	print "  data: ";
+	logprint "  data: ";
 	while ( $dataLength > 0 )
 	{
-		print substr($response,0,1);
+		logprint substr($response,0,1);
 		$response =~ s/.//;
 		$dataLength--;
 	}
-	print "\n";
+	logprint "\n";
 	($count_in, $response) = rs232_read(3);
-	print "Got $count_in bytes, reading Checksum + ETX...\n";
+	$bytes_read += $count_in;
+	logprint "Got $count_in bytes, reading Checksum + ETX...\n";
 	# 2B checksum
-	$checksum = substr($response,0,2);
-	print "  checksum: 0x".$checksum;
+	my $checksum = substr($response,0,2);
+	logprint "  checksum: 0x".$checksum;
 	$checksum = atoi($checksum);
-	print " ($checksum)\n";
+	logprint " ($checksum)\n";
 	$response =~ s/..//;
 	# ETX
 	$response =~ s/(.)//;
 	$_ = str2hex($1);
-	if ( m/03/ ) { print(" ETX\n"); }
+	if ( m/03/ ) { logprint " ETX\n"; }
 	else
 	{
-		print "error: No ETX\n";
-		print "reloading serial interface.\n";
-		$dcnfail++;
-		return sendReady();
+		logprint "error: No ETX\n";
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = -2;
+		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		cond_broadcast($requireConfiguration);
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		return $bytes_read;
 	}
-	print "\n";
-	$dcnfail = 0;
-}
-
-sub processReport
-{
-	local($report) = @_;
-
-	print ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
-
-	$pat = $STX."(.)(.)(..)(..)".$ETX;
-	while ( $report =~ s/$pat// )
+	logprint "\n";
 	{
-		print "recvd $1$2$3$4\n";
-		print "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
-		print "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
-		$rcmd = $3;
-		$rdat = $4;
-		print "rcmd $3 rdat $4\n";
-		if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
-		{
-			if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}) )
-			{
-				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat}\n";
-				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{$rdat});
-			} elsif ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'}) ) {
-				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'}\n";
-				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}{'exec'});
-			} else {
-				print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
-				eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
-			}
-			if ( "" ne $error )
-			{
-				print "===================================\n";
-				print "===  vv  !!!  ERRORS  !!!  vv   ===\n";
-				print "===================================\n";
-				print $error;
-				print "===================================\n";
-				print "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
-				print "===================================\n";
-				$error = "";
-			}
-			if ( "" ne $warning )
-			{
-				print "\nWarnings:\n";
-				print $warning;
-				print "\n";
-				$warning = "";
-			}
-			if ( "" ne $info )
-			{
-				print $info."\n";
-				$info = "";
-			}
-		}
+		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		lock $requireConfiguration;
+		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		$requireConfiguration = 0;
+		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		cond_broadcast($requireConfiguration);
+		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
 	}
-	print "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n";
-	return $report;
-}
-
-sub readReport
-{
-	return "";
-	print "Reading report.\n";
-	my $count_read = 0;
-	my $string_read = "";
-	my $string_in = "";
-	my $data = "";
-	my $retMsg = "";
-	($count_read, $string_read) = rs232_read(8);
-	while ( $count_read )
-	{
-		$string_in = $string_read;
-		$count_in = $count_read;
-		$data .= $string_read;
-		print "Got $count_in bytes back.\n";
-		print "\n";
-		$data = processReport($data);
-		$string_in =~ s/(.)/$1 /g;
-		$string_in =~ s/$STX/STX/g;
-		$string_in =~ s/$ETX/ETX/g;
-		$retMsg .= "OK - Received $count_in byte response.";
-		$retMsg .= "\n  - $string_in\n";
-		($count_read, $string_read) = rs232_read(8);
-	}
-	return $retMsg;
+	return $bytes_read;
 }
 
 sub stopNetworkServers
 {
 	{
+		logprint ' lock $stopNetworkServers;'."\n" if $debug;
 		lock $stopNetworkServers;
+		logprint " locked stopNetworkServers\n" if $debug;
 		$stopNetworkServers = 1;
+		logprint " unlocked stopNetworkServers\n" if $debug;
 	}
 
 	while ( 1 )
 	{
 		{
+			logprint ' lock $runningNetworkServers;'."\n" if $debug;
 			lock $runningNetworkServers;
+			logprint " locked runningNetworkServers\n" if $debug;
 			if ( !$runningNetworkServers )
 			{
+				logprint " unlocked runningNetworkServers\n" if $debug;
 				return;
 			}
+			logprint " unlocked runningNetworkServers\n" if $debug;
 		}
 
 		IO::Socket::INET->new("localhost:$PORT");
@@ -657,139 +1311,286 @@ sub stopNetworkServers
 
 sub sendControl # getReport
 {
-	local($inStr) = @_;
+	my $inStr = shift;
+	logprint "Sending Control $inStr\n";
 
 	$_ = $inStr;
 	if ( /^reload/i ) {
 		stopNetworkServers();
-		undef $PortObj;
-		exec( "\"$app\"" );
+		serialThread("destroy");
+		exec( "\"$cmd\"" );
 		exit;
 	} elsif ( /^shutdown/i ) {
 		stopNetworkServers();
-		undef $PortObj;
+		serialThread("destroy");
 		exit;
 	} elsif ( /^ready/i ) {
-		lock %yamaha;
-		print "Sending Ready...\n";
+		logprint "Sending Ready...\n";
 		sendReady();
 		return "ok";
 	}
 
-	lock %yamaha;
-
-	$curCtrl = time;
+	my $curCtrl = time;
 	if ( $curCtrl > ($lastCtrl + 10) )
 	{
-		print "Sending Ready...\n";
-		sendReady();
+#		logprint "Sending Ready...\n";
+#		sendReady();
 	}
 	$lastCtrl = time;
 
 	# Rules
-	if ( $yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'} )
+	if ( ($yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'})
+	  &&!(($inStr =~ m/Power/))
+	  &&!(($inStr =~ m/System/)) )
 	{
-		#return "error: Only Power and System Control commands are valid when the power is off.\n";
+		return "error: Only Power and System Control commands are valid when the power is off.\n($yamaha{'Power'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'ON'})\n";
+	}
+	my $timeout = 120;
+	while ( ($timeout > 0) && $yamaha{'System'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'} )
+	{
+		select(undef,undef,undef,0.5); # 500 millisecond sleep
+		$timeout--;
 	}
 	if ( $yamaha{'System'} ne $Spec{$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'} )
 	{
 		return "error: No Control commands are allowed when the system status is not OK.  Status is currently $yamaha{'System'}.\n";
 	}
 
-	$source = $Spec{$yamaha{'ModelID'}}{'Control'};
-	$cdr = $inStr;
-	$packet = "";
-	$packetTail = "";
-	$count = 0;
+	my $source = $Spec{$yamaha{'ModelID'}}{'Control'};
+	my $cdr = $inStr;
+	my $packet = "";
+	my $packetTail = "";
+	my $count = 0;
+	my $waitForExpect = 0;
 	while ( "" ne $cdr )
 	{
 		if ( $count > 100 ) { return "error: Internal search fault."; }
 		$count++;
-		if ( defined($source->{'Prefix'}) ) { $packet = $packet.$source->{'Prefix'}; }
+		if ( defined($source->{'Prefix'}) ) { $packet .= $source->{'Prefix'}; }
 		if ( defined($source->{'Suffix'}) ) { $packetTail = $source->{'Suffix'}.$packetTail; }
-		print "cdr $cdr\n";
+		if ( defined($source->{'Expect'}) ) { $waitForExpect = $source->{'Expect'}; }
+		logprint "cdr $cdr\n";
 		$cdr =~ s/(\S+)\s*//;
-		$car = $1;
-#		print "car $car cdr $cdr source source\n$packet $packetTail\n";
+		my $car = $1;
+#		logprint "car $car cdr $cdr source source\n$packet $packetTail\n";
 		if ( !defined($source->{$car}) &&
 			( "" ne $cdr
 			|| !defined($source->{'Eval'})
 			|| "val" eq $source->{'Eval'} ) )
 		{
-			if ( "" ne $cdr ) { print "necdr\n"; }
-			else { print "cdr |$cdr|\n"; }
-			if ( !defined($source->{'Eval'}) ) { print "nedef\n"; }
-			elsif ( "val" ne $source->{'Eval'} ) { print "seval $source->{'Eval'}\n"; }
+			if ( "" ne $cdr ) { logprint "necdr\n"; }
+			else { logprint "cdr |$cdr|\n"; }
+			if ( !defined($source->{'Eval'}) ) { logprint "nedef\n"; }
+			elsif ( "val" ne $source->{'Eval'} ) { logprint "seval $source->{'Eval'}\n"; }
 			return "error: Couldn't understand '$car' in '$inStr'";
 		}
 		if ( "" ne $cdr )
 		{
-#			print("source $source\n");
-#			print("source keys");
-#			for $key ( keys %{$source} ) { print " ".$key; }
-#			print "\n";
-#			print("source->{$car} ".$source->{$car}."\n");
+#			logprint "source $source\n";
+#			logprint "source keys";
+#			for $key ( keys %{$source} ) { logprint " ".$key; }
+#			logprint "\n";
+#			logprint "source->{$car} ".$source->{$car}."\n";
 			$source = $source->{$car};
 		} else {
-#			print("source->{$car} $source->{$car}\n");
+#			logprint "source->{$car} $source->{$car}\n";
 			if ( defined($source->{'Eval'}) )
 			{
 				if ( "val" eq $source->{'Eval'} )
 				{
+					logprint ' lock %yamaha;'."\n" if $debug;
+					lock %yamaha;
+					logprint " locked yamaha\n" if $debug;
 					$packet = $packet.eval($source->{$car}).$packetTail;
+					logprint " unlocked yamaha\n" if $debug;
 				} else {
+					logprint ' lock %yamaha;'."\n" if $debug;
+					lock %yamaha;
+					logprint " locked yamaha\n" if $debug;
 					$packet = $packet.eval($source->{'Eval'}).$packetTail;
+					logprint " unlocked yamaha\n" if $debug;
 				}
 			} else {
 				$packet = $packet.$source->{$car}.$packetTail;
 			}
 		}
 	}
-	print "send $packet";
+	logprint "send $packet";
+
+	my $expectReport;
+	$source = $Spec{$yamaha{'ModelID'}}{'Expect'};
+	$cdr = $inStr;
+	$count = 0;
+	while ( "" ne $cdr )
+	{
+		if ( $count > 100 ) { return "error: Internal search fault."; }
+		$count++;
+		logprint "cdr $cdr\n";
+		$cdr =~ s/(\S+)\s*//;
+		my $car = $1;
+		if ( !defined($source->{$car}) &&
+			( "" ne $cdr
+			|| !defined($source->{'Eval'})
+			|| "val" eq $source->{'Eval'} ) )
+		{
+			last;
+		}
+		if ( "" ne $cdr )
+		{
+			$source = $source->{$car};
+		} else {
+			if ( defined($source->{'Eval'}) )
+			{
+				if ( "val" eq $source->{'Eval'} )
+				{
+					$expectReport = eval($source->{$car});
+				} else {
+					logprint "-$yamaha{'Zone1Power'}-$yamaha{'Zone2Power'}-$yamaha{'Zone3Power'}-\n";
+					logprint "expectReport = eval($source->{'Eval'});\n";
+					$expectReport = eval($source->{'Eval'});
+					logprint "expectReport = -$expectReport-\n";
+				}
+			} else {
+				$expectReport = $source->{$car};
+			}
+		}
+	}
 
 	$curCtrl = time;
 	if ( $curCtrl > ($lastCtrl + 10) )
 	{
-		# also done at the top of this function, but included here in case our decode took a long time.
-		print "Sending Ready...\n";
-		sendReady();
+#		# also done at the top of this function, but included here in case our decode took a long time.
+#		logprint "Sending Ready...\n";
+#		sendReady();
 	}
-	print "Sending Control $inStr...\n";
-	$PortObj->write($packet);
-	$lastCtrl = time;
 
-	return readReport();
+	my $myExpect;
+	if ( defined($expectReport) )
+	{
+		logprint "expect $expectReport";
+		logprint ' lock %expect;'."\n" if $debug;
+		lock %expect;
+		logprint " locked expect\n" if $debug;
+		$expect{$nextExpectUID} = $expectReport;
+		$expectStimulus{$nextExpectUID} = $packet;
+		$myExpect = $nextExpectUID;
+		$nextExpectUID++;
+		logprint " unlocked expect\n" if $debug;
+	}
+
+	logprint "Sending Control $inStr...\n";
+	serialThread("write",$packet);
+	$lastCtrl = time;
+	logprint "Sent.\n";
+
+	if ( $waitForExpect && defined($expectReport))
+	{
+		logprint "Waiting for expect...\n";
+		{
+			logprint "expect $expectReport\n";
+			logprint ' lock %expect;'."\n" if $debug;
+			lock %expect;
+			logprint " locked expect\n" if $debug;
+			logprint " cond_wait expect\n" if $debug;
+			while (defined($expect{$myExpect}))
+			{
+				cond_timedwait(%expect,time+1);
+				if ($needSendReady && defined($expect{$myExpect}))
+				{
+					logprint ' lock $needSendReady;'."\n" if $debug;
+					lock $needSendReady;
+					logprint ' locked $needSendReady;'."\n" if $debug;
+					sendReady();
+					$needSendReady = 0;
+					logprint ' cond_broadcast $needSendReady;'."\n" if $debug;
+					cond_broadcast($needSendReady);
+					logprint ' unlocked $needSendReady;'."\n" if $debug;
+				}
+			}
+			logprint " locked expect\n" if $debug;
+		}
+		logprint "Done waiting.\n";
+	}
+
+	logprint "Return from sendControl.\n";
+	return ""; #readReport();
 }
 
 sub sendControlToServer
 {
 	#TODO: unsorted commands may not be fair or desireable.
-	local($inStr) = @_;
+	my $inStr = shift;
+	my $id;
 
 	{
+		logprint ' lock $nextioUID;'."\n" if $debug;
+		lock $nextioUID;
+		logprint " locked nextioUID\n" if $debug;
+		$id = $nextioUID;
+		$nextioUID++;
+		logprint " unlocked nextioUID\n" if $debug;
+	}
+	{
+		logprint ' lock %output;'."\n" if $debug;
 		lock %output;
+		logprint " locked output\n" if $debug;
 		undef $output{$id};
+		logprint " unlocked output\n" if $debug;
 	}
 
 	{
+		logprint ' lock %input;'."\n" if $debug;
 		lock %input;
+		logprint " locked input\n" if $debug;
 		$input{$id} = $inStr;
+		cond_signal(%input);
+		logprint " cond_signal input\n" if $debug;
+		logprint " unlocked input\n" if $debug;
 	}
 
-	for (;;) # forever
 	{
-		{
-			lock %output;
-			if ( defined($output{$id}) ) { return $output{$id}; }
-		}
-		sleep(0.1);
+		logprint ' lock %output;'."\n" if $debug;
+		lock %output;
+		logprint " locked output\n" if $debug;
+		logprint " unlocked output\n" if $debug;
+		logprint " cond_wait output\n" if $debug;
+		cond_wait(%output) until defined($output{$id});
+		logprint " locked output\n" if $debug;
+		logprint " unlocked output\n" if $debug;
+		return $output{$id};
 	}
-
 }
+
+my $macroDirectory = "";
+if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
+    ((!$windows) && -e "/etc/rxv2400_rxm") )
+{
+	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
+	{
+		mkdir("$ENV{'HOME'}/.rxv2400");
+	} elsif ( ! -d "$ENV{'HOME'}/.rxv2400" ) {
+		logprint "error: ~/.rxv2400 not a macroDirectory.\n" and die;
+	}
+	$macroDirectory = "$ENV{'HOME'}/.rxv2400";
+} else {
+	$macroDirectory = "macro";
+	if ( ! -e "macro" )
+	{
+		mkdir("macro");
+		if ( ! -d "macro" )
+		{
+			logprint "warning: 'macro' macroDirectory could not be created.  Attempts to add or save macros may fail.\n";
+		}
+	} elsif ( ! -d "macro" ) {
+		$macroDirectory = ".";
+	}
+}
+
+%MacroLibrary = ();
 
 sub writeMacroFile
 {
-	local($inFile) = @_;
+	my $inFile = shift;
 
 	if ( !($inFile =~ m/rxm$/) )
 	{
@@ -797,18 +1598,21 @@ sub writeMacroFile
 	}
 
 	if (open(MYFILE, ">$inFile")) {
+		logprint ' lock %MacroLibrary;'."\n" if $debug;
 		lock %MacroLibrary;
-		for $key ( keys %MacroLibrary )
+		logprint " locked MacroLibrary\n" if $debug;
+		for my $key ( keys %MacroLibrary )
 		{
 			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
 		}
 		close(MYFILE);
+		logprint " unlocked MacroLibrary\n" if $debug;
 	}
 }
 
 sub readMacroFile
 {
-	local($inFile) = @_;
+	my $inFile = shift;
 
 	if ( !($inFile =~ m/rxm$/) )
 	{
@@ -818,54 +1622,58 @@ sub readMacroFile
 	if (open(MYFILE, "$inFile")) {
 		while (<MYFILE>)
 		{
-	    	next unless /\S/;       # blank line check
-	
+			next unless /\S/;       # blank line check
+
 			s/\n//;
 			s/\r//;
 			s/^\s*//;
 
 			if ( /^macro\s+(\S+)/i ) {
-				$macroName = $1;
+				my $macroName = $1;
+				logprint ' lock %MacroLibrary;'."\n" if $debug;
 				lock %MacroLibrary;
-				print "reading macro '$macroName'\n";
+				logprint " locked MacroLibrary\n" if $debug;
+				logprint "reading macro '$macroName'\n";
 				$MacroLibrary{$macroName} = "";
-		
-			    while (<MYFILE>) 
-			    {
-			    	next unless /\S/;       # blank line check
+
+				while (<MYFILE>)
+				{
+					next unless /\S/;       # blank line check
 					last if /^end/;
-			
+
 					s/\n//;
 					s/\r//;
 					s/^\s*//;
 					$MacroLibrary{$macroName} .= $_."\n";
 				}
+				logprint " unlocked MacroLibrary\n" if $debug;
 			}
 		}
 		close(MYFILE);
 	}
 }
 
-$advInpMode = 0;
 sub decode
 {
-	local($inStr) = @_;
+	my $inStr = shift;
+	my $client = shift;
 	$_ = $inStr;
 
 	if ( /^Control/ )
 	{
 		s/^Control\s*//;
-		$command = $_;
+		my $command = $_;
 		#sendInit();
-		$status = sendControlToServer($command);
-		print $status."\n";
-		if ( $client->connected() )
+		my $status = sendControlToServer($command);
+		logprint $status."\n";
+		if ( defined($client) && $client->connected() )
 		{
 			print $client $status."\n";
 		}
-	} elsif ( /^status/i ) {
+	} elsif ( /^cstatus/i && defined($client) ) {
 		sendControlToServer("ready");
-		lock %yamaha;
+		printStatus($client,1);
+	} elsif ( /^status/i && defined($client) ) {
 		printStatus($client,1);
 	} elsif ( /^play/i ) {
 		s/play\s*//;
@@ -879,115 +1687,126 @@ sub decode
 			system("killall shuffle.pl");
 			system("killall mpg123");
 			# Fork so this operation is untimed.
-			system("shuffle.pl \"$_\"&") and system("./shuffle.pl \"$_\"&");
+			system("shuffle.pl $_& > /dev/null") and system("./shuffle.pl $_& > /dev/null");
 		}
 	} elsif ( /^sleep/i ) {
+		logprint "$_\n";
 		s/sleep\s*//;
-		$time = 0;
+		my $time = 0;
 		if ( s/^(\d+)$// )
 		{
 			$time = $1;
+			logprint "$time time\n";
 		}
 		if ( s/(\d+)d//i )
 		{
 			$time += 24 * 60 * 60 * $1;
+			logprint "$1 days\n";
 		}
 		if ( s/(\d+)h//i )
 		{
 			$time += 60 * 60 * $1;
+			logprint "$1 hours\n";
 		}
 		if ( s/(\d+)m//i )
 		{
 			$time += 60 * $1;
+			logprint "$1 mins\n";
 		}
 		if ( s/(\d+)s//i )
 		{
 			$time += $1;
+			logprint "$1 secs\n";
 		}
+		logprint "$time total\n";
 		sleep $time;
-	} elsif ( 0 && /^test/i ) {
-		$rcvd = 0;
-            $string_in = "";
-		while ( 20 > $rcvd )
+	} elsif ( 0 && defined($client) && /^test/i ) {
+#		$rcvd = 0;
+#            $string_in = "";
+#		while ( 20 > $rcvd )
+#		{
+#			($count_in, $string_i) = rs232_read(512);
+#                $string_in .= $string_i;
+#			if ( 0 != $count_in )
+#			{
+#				$rcvd++;
+#				logprint "Got $count_in bytes back.\n";
+#				#$string_in = "";
+#				logprint "\n";
+#                    $pat = $STX."(.)(.)(..)(..)".$ETX;
+#                    while ( $string_in =~ s/$pat// )
+#                    {
+#                      print $client "recvd $1$2$3$4\n";
+#                      print $client "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
+#                      print $client "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
+#                      my $rcmd = $3;
+#                      my $rdat = $4;
+#                      logprint "rcmd $3 rdat $4\n";
+#                      if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
+#                      {
+#                        logprint "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
+#                        eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
+#                        if ( "" ne $error )
+#                        {
+#                          logprint "===================================\n";
+#                          logprint "===  vv  !!!  ERRORS  !!!  vv   ===\n";
+#                          logprint "===================================\n";
+#                          logprint $error;
+#                          logprint "===================================\n";
+#                          logprint "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
+#                          logprint "===================================\n";
+#                          $error = "";
+#                        }
+#                        if ( "" ne $warning )
+#                        {
+#                          logprint "\nWarnings:\n";
+#                          logprint $warning;
+#                          logprint "\n";
+#                          $warning = "";
+#                        }
+#                        if ( "" ne $info )
+#                        {
+#                          logprint $info."\n";
+#                          $info = "";
+#                        }
+#                      }
+#                      $rdat = "";
+#                    }
+##					$string_in = dataToPrint $string_in;
+##					$retMsg = "OK - Received $count_in byte response.";
+##					$retMsg = $retMsg."\n  - $string_in";
+##					#print $client $retMsg."\n";
+##					$_ = "c:\\Documents and Settings\\Dave\\My Documents\\My Music\\Gershwin\\American Draft - Someone to Watch Over Me.mp3";
+##					system("fork.pl \"c:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
+#			}
+#		}
+	} elsif ( /^macro\s+(\S+)/i && defined($client) ) {
+		my $macroName = $1;
 		{
-			($count_in, $string_i) = rs232_read(512);
-                $string_in .= $string_i;
-			if ( 0 != $count_in )
-			{
-				$rcvd++;
-				print "Got $count_in bytes back.\n";
-				#$string_in = "";
-				print "\n";
-                    $pat = $STX."(.)(.)(..)(..)".$ETX;
-                    while ( $string_in =~ s/$pat// )
-                    {
-                      print $client "recvd $1$2$3$4\n";
-                      print $client "From: $Spec{$yamaha{'ModelID'}}{'Report'}{'ControlType'}[$1]\n";
-                      print $client "Guard: $Spec{$yamaha{'ModelID'}}{'Report'}{'GuardStatus'}[$2]\n";
-                      $rcmd = $3;
-                      $rdat = $4;
-                      print "rcmd $3 rdat $4\n";
-                      if ( defined($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}) )
-                      {
-                        print "eval $Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd}\n";
-                        eval($Spec{$yamaha{'ModelID'}}{'Report'}{$rcmd});
-                        if ( "" ne $error )
-                        {
-                          print "===================================\n";
-                          print "===  vv  !!!  ERRORS  !!!  vv   ===\n";
-                          print "===================================\n";
-                          print $error;
-                          print "===================================\n";
-                          print "===  ^^  !!!  ERRORS  !!!  ^^   ===\n";
-                          print "===================================\n";
-                          $error = "";
-                        }
-                        if ( "" ne $warning )
-                        {
-                          print "\nWarnings:\n";
-                          print $warning;
-                          print "\n";
-                          $warning = "";
-                        }
-                        if ( "" ne $info )
-                        {
-                          print $info."\n";
-                          $info = "";
-                        }
-                      }
-                      $rdat = "";
-                    }
-#					$string_in =~ s/(.)/$1 /g;
-#					$string_in =~ s/$STX/STX/g;
-#					$string_in =~ s/$ETX/ETX/g;
-#					$retMsg = "OK - Received $count_in byte response.";
-#					$retMsg = $retMsg."\n  - $string_in";
-#					#print $client $retMsg."\n";
-#					$_ = "c:\\Documents and Settings\\Dave\\My Documents\\My Music\\Gershwin\\American Draft - Someone to Watch Over Me.mp3";
-#					system("fork.pl \"c:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
-			}
-		}
-	} elsif ( /^macro\s+(\S+)/i ) {
-		$macroName = $1;
-		{
+			logprint ' lock %MacroLibrary;'."\n" if $debug;
 			lock %MacroLibrary;
+			logprint " locked MacroLibrary\n" if $debug;
 			$MacroLibrary{$macroName} = "";
+			logprint " unlocked MacroLibrary\n" if $debug;
 		}
 
 		print $client "Recording macro '$macroName'...\n";
 		print $client "(use 'end' when finished)\n";
 
-	    while (<$client>) 
-	    {
-	    	next unless /\S/;       # blank line check
+		while (<$client>)
+		{
+			next unless /\S/;       # blank line check
 			last if /^end/;
-	
+
 			s/\n//;
 			s/\r//;
 			s/^\s*//;
 			{
+				logprint ' lock %MacroLibrary;'."\n" if $debug;
 				lock %MacroLibrary;
+				logprint " locked MacroLibrary\n" if $debug;
 				$MacroLibrary{$macroName} .= $_."\n";
+				logprint " unlocked MacroLibrary\n" if $debug;
 			}
 		}
 
@@ -998,67 +1817,110 @@ sub decode
 		my $macroName = $1;
 		my $macro = "";
 		{
+			logprint ' lock %MacroLibrary;'."\n" if $debug;
 			lock %MacroLibrary;
+			logprint " locked MacroLibrary\n" if $debug;
 			if ( !defined($MacroLibrary{$macroName}) ) {
-				print $client "error: Unknown macro '$macroName'\n";
-				return;
+				if ( defined($client) )
+				{
+					print $client "error: Unknown macro '$macroName'\n";
+				}
+				return 0;
 			}
 			$macro = $MacroLibrary{$macroName};
+			logprint " unlocked MacroLibrary\n" if $debug;
 		}
-		print "running macro '$macro'\n";
+		logprint "running macro '$macro'\n";
 		while ( $macro =~ s/(.+?)\n// )
 		{
-			print "running cmd '$1'\n";
-			decode($1);
+			logprint "running cmd '$1'\n";
+			decode($1,$client);
 		}
-		if ( $client->connected() )
+		if ( defined($client) && $client->connected() )
 		{
 			print $client "Macro '$macroName' completed.\n";
 		}
 	} elsif ( /^write\s+(\S+)/i ) {
+		logprint ' lock %MacroLibrary;'."\n" if $debug;
 		lock %MacroLibrary;
+		logprint " locked MacroLibrary\n" if $debug;
 		writeMacroFile($1);
+		logprint " unlocked MacroLibrary\n" if $debug;
 	} elsif ( /^read\s+(\S+)/i ) {
 		readMacroFile($1);
 	} elsif ( /^clear\s+(\S+)/i ) {
+		logprint ' lock %MacroLibrary;'."\n" if $debug;
 		lock %MacroLibrary;
+		logprint " locked MacroLibrary\n" if $debug;
 		%MacroLibrary = ();
+		logprint " unlocked MacroLibrary\n" if $debug;
+	} elsif ( s/^(at\s+.*?)\sdo\s+//i ) {
+		my $dotime = $1;
+		addScheduled($dotime,$_,$client);
+	} elsif ( /^schedule/i && defined($client) ) {
+		printSchedule($client);
 	} elsif ( /^debug\s+([0-9])/i ) {
 		$debug = $1;
- 		return;
-	} elsif ( /^bye/i ) {
+		return (!defined($client));
+	} elsif ( /^bye/i && defined($client) ) {
+		print $client "Goodbye.\n";
 		close $client;
-		{
-			lock %output;
-			undef $output{$id};
-		}
- 		return;
+		return 1;
 	} elsif ( /^reload/i ) {
-		close $client;
+		if ( defined($client) )
+		{ close $client; }
 		{
+			my $id;
+			{
+				logprint ' lock $nextioUID;'."\n" if $debug;
+				lock $nextioUID;
+				logprint " locked nextioUID\n" if $debug;
+				$id = $nextioUID;
+				$nextioUID++;
+				logprint " unlocked nextioUID\n" if $debug;
+			}
+			logprint ' lock %input;'."\n" if $debug;
 			lock %input;
+			logprint " locked input\n" if $debug;
 			$input{$id} = "reload";
+			cond_signal(%input);
+			logprint " cond_signal input\n" if $debug;
+			logprint " unlocked input\n" if $debug;
 		}
 		exit;
 	} elsif ( /^shutdown/i ) {
+		if ( defined($client) )
+		{ close $client; }
 		close $client;
 		{
+			my $id;
+			{
+				logprint ' lock $nextioUID;'."\n" if $debug;
+				lock $nextioUID;
+				logprint " locked nextioUID\n" if $debug;
+				$id = $nextioUID;
+				$nextioUID++;
+				logprint " unlocked nextioUID\n" if $debug;
+			}
+			logprint ' lock %input;'."\n" if $debug;
 			lock %input;
+			logprint " locked input\n" if $debug;
 			$input{$id} = "shutdown";
+			cond_signal(%input);
+			logprint " cond_signal input\n" if $debug;
+			logprint " unlocked input\n" if $debug;
 		}
 		exit;
-	} elsif ( /^help/i ) {
+	} elsif ( /^help/i && defined($client) ) {
 		s/help\s*//;
-		$help = $_;
+		my $request = $_;
 
-		$modelID = "";
-		{ 
-			lock %yamaha;
+		my $modelID = "";
+		{
 			$modelID = $yamaha{'ModelID'};
 		}
-		$source = $Spec{$modelID};
-		$cdr = $_;
-		$count = 0;
+		my $source = $Spec{$modelID};
+		my $cdr = $_;
 		if ( "" eq $cdr )
 		{
 			print $client "\nWelcome to help.\n";
@@ -1080,104 +1942,459 @@ sub decode
 		} else {
 			print $client "\nCommands that being with \"$_\" have the following options:\n";
 		}
+		my $count = 0;
 		while ( "" ne $cdr )
 		{
-			if ( $count > 100 ) { print $client "error: Internal search fault.\n"; $cdr = ""; return; }
+			if ( $count > 100 ) { print $client "error: Internal search fault.\n"; $cdr = ""; return 0; }
 			$count++;
 			$cdr =~ s/(\S+)\s*//;
-			$car = $1;
+			my $car = $1;
 			if ( !defined($source->{$car}) )
 			{
-				print $client "error: Couldn't understand '$car' in '$help'\n";
+				print $client "error: Couldn't understand '$car' in '$request'\n";
 				$cdr = "";
-				return;
+				return 0;
 			}
 			if ( "" ne $cdr )
 			{
 				$source = $source->{$car};
 			} else {
-				$options = 0;
-				for $key ( keys %{$source->{$car}} )
+				my $options = 0;
+				for my $key ( keys %{$source->{$car}} )
 				{
-					if ( "Prefix" ne $key && "Suffix" ne $key && "Eval" ne $key )
+					if ( "Prefix" ne $key && "Suffix" ne $key && "Eval" ne $key && "Expect" ne $key )
 					{
 						$options++;
 						print $client "  ".$key;
-						if ( defined((keys %{$source->{$car}->{$key}})[0]) ) { print $client "*"; }
+						if ( ref($source->{$car}->{$key}) eq "HASH" ) { print $client "*"; }
 						print $client "\n";
 					}
 				}
 				if ( 0 == $options ) { print $client "  <none>\n"; }
 			}
 		}
-	} elsif ( 0 && /^advimpmode/i ) {
+	} elsif ( 0 && /^advinpmode/i && defined($client) ) {
 		# Advanced Input Mode allows arrow keys & history
-		$advInpMode = 1;
+		my $advInpMode = 1;
 		my $history = ("");
 		my $x = -1;
 		my $y = 0;
-	    while ( 1 == $advInpMode && 2 != $client->recv($buf,1)) 
-	    {
-			if ( $buf eq "z" ) { $advimpmode = 0; }
+		my $buf;
+		my @history = ();
+		while ( 1 == $advInpMode && 2 != $client->recv($buf,1))
+		{
+			if ( $buf eq "z" ) { $advInpMode = 0; }
 			$buf = ord($buf);
 			print $client "got: $buf\n";
 			next;
 			next unless $buf eq "z";
 			last;
 			if ( $x == -1 ) { $history[0] .= $buf; }
-	    	next unless /\S/;       # blank line check
-	
+			next unless /\S/;       # blank line check
+
 			s/\n//;
 			s/\r//;
 			s/^\s*//;
-			decode($_);
-	    }
-	} elsif ( /^simimpmode/i ) {
-		$advInpMode = 0;
+			last if /^siminpmode/i;
+			next if /^advinpmode/i; # Don't nest the handling.
+			decode($_,$client);
+		}
+	} elsif ( /^siminpmode/i && defined($client) ) {
+		# Keep it here so they can ensure without error.
 	} else {
-		if ( $client->connected() )
+		if ( defined($client) && $client->connected() )
 		{
 			print $client "error: Couldn't understand command '$_'\n";
 		}
 	}
-	if ( ($client->connected()) )
+	if ( defined($client) && $client->connected() )
 	{
 		print $client "\n";
 	}
+	return (!defined($client));
 }
 
-setupSerialPort();
+serialThread("setup");
+
+async { # Read data loop.
+	my $readless = 0;
+	for (;;) # forever
+	{
+		if ( !readData() )
+		{
+			if ( ($lastSend > $lastRecv) && (($lastSend+10) < time) && !$needSendReady)
+			{
+				logprint "Ten seconds of action without reaction.  Sending Ready command.\n";
+				# After ten seconds of action without reaction we send a Ready command.
+				async { # Don't block the read thread.
+					my $letItBeMe = 0;
+					{
+						logprint ' lock $needSendReady;'."\n" if $debug;
+						lock $needSendReady;
+						logprint ' locked $needSendReady;'."\n" if $debug;
+						if ( ! $needSendReady )
+						{
+							$letItBeMe = 1;
+							$needSendReady = 1;
+							logprint ' unlocked $needSendReady;'."\n" if $debug;
+							logprint ' cond_wait $needSendReady;'."\n" if $debug;
+							cond_wait($needSendReady) until $needSendReady == 0;
+							logprint ' locked $needSendReady;'."\n" if $debug;
+						}
+						logprint ' unlocked $needSendReady;'."\n" if $debug;
+					}
+					# Resend unfulfilled commands.
+					if ( $letItBeMe )
+					{
+						foreach my $i ( sort { $a <=> $b } keys %expectStimulus )
+						{
+							serialThread("write",$expectStimulus{$i});
+						}
+					}
+				};
+			}
+			if ( $readless < 50 )
+			{
+				$readless++;
+			}
+			# Sleep a tenth of a second for every five $readless.
+			select(undef,undef,undef,0.1*int($readless/5));
+		} else {
+			$readless = 0;
+		}
+	}
+};
+
 sendInit();
-sendReady();
+#sendReady();
+$needSendReady = 1;
 #Test line:
 #sendControl("Operation Zone1Power ON");
 
-my $macroDirectory = "";
-if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
-    ((!$windows) && -e "/etc/rxv2400_rxm") )
+sub serviceClient
 {
-	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
+	my $id = shift;
+	my $client = shift;
+#	{
+#		lock
+#		close $client;
+#		return;
+
+	# Welcome message
+	print $client "RX-V2400 Server $version connection open.\n";
 	{
-		mkdir("$ENV{'HOME'}/.rxv2400");
-	} elsif ( ! -d "$ENV{'HOME'}/.rxv2400" ) {
-		print "error: ~/.rxv2400 not a macroDirectory.\n" and die;
+		print $client "Accepting commands for $yamaha{'ModelID'}";
+		if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
 	}
-	$macroDirectory = "$ENV{'HOME'}/.rxv2400";
-} else {
-	$macroDirectory = "macro";
-	if ( ! -e "macro" )
+	print $client " device.\n";
+	print $client "(type 'help' for documentation)\n";
+
+	my $closed = 0; # connected() gives a warning if it isn't connected (weird)
+	                # so we'll keep track of that ourselves as well.
+	while ((!$closed) && $client->connected() && defined($_ = <$client>))
 	{
-		mkdir("macro");
-		if ( ! -d "macro" )
-		{
-			print "warning: 'macro' macroDirectory could not be created.  Attempts to add or save macros may fail.\n";
-		}
-	} elsif ( ! -d "macro" ) {
-		$macroDirectory = ".";
+		next unless /\S/;       # blank line check
+
+		s/\n//;
+		s/\r//;
+		s/^\s*//;
+		$closed = decode($_,$client);
 	}
 }
 
-%MacroLibrary = ();
+our %schedule : shared;
+our $nextScheduleIndex : shared;
+$nextScheduleIndex = 1;
+our $nextRun : shared;
+$nextRun = -1;
+our $activeScheduleSleeper : shared;
+$activeScheduleSleeper = 0;
+
+sub newScheduleSleeper
+{
+	my $seconds = shift;
+	my $client = shift;
+	async {
+		my $num;
+		if ( defined($client) && $client->connected() )
+		{
+			# We have passed our client all the way through to this strange
+			# location not because we have even the slightest desire to make
+			# use of it, but because this thread which was never made to know
+			# of the client still must close it to avoid a non-terminating
+			# connection.
+			close $client;
+		}
+		logprint ' { lock $activeScheduleSleeper; $activeScheduleSleeper++; $num = $activeScheduleSleeper; }'."\n" if $debug;
+		{ lock $activeScheduleSleeper; $activeScheduleSleeper++; $num = $activeScheduleSleeper; }
+		logprint " unlocked\n" if $debug;
+		if ( $seconds > 0 ) { sleep ($seconds); }
+		{
+			logprint ' lock $activeScheduleSleeper;'."\n" if $debug;
+			lock $activeScheduleSleeper;
+			logprint " locked activeScheduleSleeper\n" if $debug;
+			if ( $num == $activeScheduleSleeper )
+			{
+				$num = 1;
+				logprint ' lock $nextRun;'."\n" if $debug;
+				lock $nextRun;
+				logprint " locked nextRun\n" if $debug;
+				$nextRun = -1;
+				logprint " unlocked nextRun\n" if $debug;
+			} else {
+				$num = 0;
+			}
+			logprint " unlocked activeScheduleSleeper\n" if $debug;
+		}
+		if ( $num )
+		{
+			runSchedule();
+		}
+	};
+}
+
+sub runSchedule
+{
+	logprint ' lock %schedule;'."\n" if $debug;
+	lock %schedule;
+	logprint " locked schedule\n" if $debug;
+	my $nextTime = -1;
+	foreach my $id ( keys %schedule )
+	{
+		if ( $schedule{$id}{'nextRun'} <= time )
+		{
+			my $delete = 0;
+			if ( $schedule{$id}{'repeat'} )
+			{
+				my $client;
+				my ($timeToRun,$repeat) = decodeTime($schedule{$id}{'desc'},$client);
+				$schedule{$id}{'nextRun'} = $timeToRun;
+				if ( ($nextTime > $schedule{$id}{'nextRun'})
+				   ||(-1 == $nextTime) )
+				{
+					$nextTime = $schedule{$id}{'nextRun'};
+				}
+			} else {
+				$schedule{$id}{'nextRun'} += time; # Make sure we don't hit it before it is deleted..
+				$delete = 1;
+			}
+			threads->new(\&serviceScheduled,$id,$delete);
+		} else {
+			if ( ($nextTime > $schedule{$id}{'nextRun'})
+			   ||(-1 == $nextTime) )
+			{
+				$nextTime = $schedule{$id}{'nextRun'};
+			}
+		}
+	}
+	{
+		logprint ' lock $nextRun;'."\n" if $debug;
+		lock $nextRun;
+		logprint " locked nextRun\n" if $debug;
+		if ( (-1 != $nextTime) && ((-1 == $nextRun) || ($nextRun > $nextTime)) )
+		{
+				$nextRun = $nextTime;
+				newScheduleSleeper($nextRun-time);
+		}
+		logprint " unlocked nextRun\n" if $debug;
+	}
+	logprint " unlocked schedule\n" if $debug;
+}
+
+sub printSchedule
+{
+	my $client = shift;
+	foreach my $id ( sort { $a <=> $b } keys %schedule )
+	{
+		print $client "$id.\t$schedule{$id}{'command'}\n"
+		                  . "\tNext run: ".localtime($schedule{$id}{'nextRun'})."\n";
+		if ( defined($schedule{$id}{'desc'}) )
+		{
+			print $client "\t$schedule{$id}{'desc'}\n";
+		}
+	}
+}
+
+sub decodeTime
+{
+	my $dotime = shift;
+	my $client = shift;
+	my $dosleep = -1;
+	my $repeat = 0;
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year += 1900;
+	$mon += 1;
+
+	if ( $dotime =~ s/^(..) every\s/$1 /i )
+	{
+		$repeat = 1;
+	}
+
+	if ( $dotime =~ s/^at\s//i )
+	{
+		if ( $dotime =~ m/^(\d{1,2}):(\d{1,2})\s*$/ )
+		{
+			$sec += 1; # Prevent time being right now.
+			# Assume 24 hour time.
+			my ($dohour,$domin) = ($1,$2);
+			$dohour = ($dohour-$hour);
+			$domin = ($domin-$min);
+			$dosleep = (((($dohour*60)+$domin)*60)-$sec)%(60*60*24);
+			$dosleep += 1; # For $sec tweak above.
+			my @timeinfo = localtime(time+$dosleep);
+			if ( ($isdst != $timeinfo[8]) && ($dohour >= 2) )
+			{
+				if ( $isdst )
+				{
+					$dosleep += (60*60);
+				} else {
+					$dosleep -= (60*60);
+				}
+			}
+		} else {
+			if ( defined($client) && $client->connected() )
+			{
+				print $client "error: Couldn't understand time format '$dotime'\n";
+			}
+		}
+	}
+	elsif ( $dotime =~ s/^in\s//i )
+	{
+		if ( 0 )
+		{
+		} else {
+			if ( defined($client) && $client->connected() )
+			{
+				print $client "error: Couldn't understand time format '$dotime'\n";
+			}
+		}
+	}
+	return(time+$dosleep,$repeat);
+}
+
+sub addScheduled
+{
+	my $desc = shift;
+	my $command = shift;
+	my $client = shift;
+
+	$desc =~ s/\s+/ /g;
+	$command =~ s/\s+/ /g;
+	$command =~ s/\s+$//;
+
+	my ($timeToRun,$repeat) = decodeTime($desc,$client);
+	print $client "Will run in ";
+	print $client ($timeToRun-time)." seconds";
+	print $client " repeating ";
+	print $client "$repeat\n";
+
+	{
+		logprint ' lock %schedule;'."\n" if $debug;
+		lock %schedule;
+		logprint " locked schedule\n" if $debug;
+		logprint ' lock $nextScheduleIndex;'."\n" if $debug;
+		lock $nextScheduleIndex;
+		logprint " locked nextScheduleIndex\n" if $debug;
+		my $myindex = $nextScheduleIndex;
+		share($schedule{$myindex});
+		$schedule{$myindex} = &share( {} );
+		$schedule{$myindex}{'nextRun'} = $timeToRun;
+		$schedule{$myindex}{'repeat'} = $repeat;
+		share($schedule{$myindex}{'command'});
+		$schedule{$myindex}{'command'} = $command;
+		$schedule{$myindex}{'desc'} = $desc;
+		$nextScheduleIndex++;
+		logprint " unlocked schedule\n" if $debug;
+		logprint " unlocked nextScheduleIndex\n" if $debug;
+	}
+	{
+		logprint ' lock $nextRun;'."\n" if $debug;
+		lock $nextRun;
+		logprint " locked nextRun\n" if $debug;
+		if ( (-1 == $nextRun) || ($nextRun > $timeToRun) )
+		{
+			$nextRun = $timeToRun;
+			newScheduleSleeper($nextRun-time,$client);
+		}
+		logprint " unlocked nextRun\n" if $debug;
+	}
+}
+
+sub serviceScheduled
+{
+	my $id = shift;
+	my $delete = shift;
+	my $client;
+	my $command = $schedule{$id}{'command'};
+	if ((!decode($command,$client)) || $delete)
+	{
+		logprint ' lock %schedule;'."\n" if $debug;
+		lock %schedule;
+		logprint " locked schedule\n" if $debug;
+		# Just in case there's a race on delete...
+		if ( defined($schedule{$id}) )
+		{
+			delete($schedule{$id});
+		}
+		logprint " unlocked schedule\n" if $debug;
+	}
+}
+
+#sub listenOnServer
+#{
+#	my $server = shift;
+#
+#	$client = $server->accept();
+#
+#	{
+#		lock($server);
+#		cond_signal($server);
+#	}
+#
+#	serviceClient(1, $client);
+#}
+
+sub startNetworkServer
+{
+	my $server = IO::Socket::INET->new( Proto     => 'tcp',
+	                                    LocalPort => $PORT,
+	                                    Listen    => SOMAXCONN,
+	                                    Reuse     => 1);
+
+	die "sorry, couldn't setup server" unless $server;
+	{
+		logprint ' lock $runningNetworkServers;'."\n" if $debug;
+		lock $runningNetworkServers;
+		logprint " locked runningNetworkServers\n" if $debug;
+		$runningNetworkServers++;
+		print "[RXV-Server $version ($runningNetworkServers) waiting for commands on port $PORT]\n";
+		logprint " unlocked runningNetworkServers\n" if $debug;
+	}
+
+	while (my $client = $server->accept())
+	{
+		$client->autoflush(1);
+		logprint ' lock $stopNetworkServers;'."\n" if $debug;
+		lock $stopNetworkServers;
+		logprint " locked stopNetworkServers\n" if $debug;
+		if ( $stopNetworkServers )
+		{
+			close $client;
+			close $server;
+			logprint ' lock $runningNetworkServers;'."\n" if $debug;
+			lock $runningNetworkServers;
+			logprint " locked runningNetworkServers\n" if $debug;
+			$runningNetworkServers--;
+			logprint " unlocked runningNetworkServers\n" if $debug;
+		} else {
+			threads->new(\&serviceClient,1, $client);
+			close $client;
+		}
+		logprint " unlocked stopNetworkServers\n" if $debug;
+	}
+}
+
+
 if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 	readMacroFile("$ENV{'HOME'}/.rxv2400_rxm");
 } elsif ( (!$windows) && -e "/etc/rxv2400_rxm" ) {
@@ -1188,161 +2405,152 @@ if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 	readMacroFile("default.rxm");
 }
 
-sub serviceClient
-{
-	local($id) = $_[0];
-	local($client) = $_[1];
-
-	# Welcome message
-	print $client "RX-V2400 Server 1.a6 connection open.\n";
-	{
-		lock %yamaha;
-		print $client "Accepting commands for $yamaha{'ModelID'}";
-		if ( $yamaha{'ModelID'} eq "R0161" ) { print $client " (RX-V2400)"; }
-	}
-	print $client " device.\n";
-	print $client "(type 'help' for documentation)\n";
-	
-    while ($client->connected() && defined($_ = <$client>)) 
-    {
-    	next unless /\S/;       # blank line check
-
-		s/\n//;
-		s/\r//;
-		s/^\s*//;
-		decode($_);
-    }
-}
-
-sub startNetworkServer
-{
-	$server = IO::Socket::INET->new( Proto     => 'tcp',
-	                                 LocalPort => $PORT,
-	                                 Listen    => SOMAXCONN,
-	                                 Reuse     => 1);
-	
-	die "sorry, couldn't setup server" unless $server;
-	{
-		lock $runningNetworkServers;
-		$runningNetworkServers++;
-		print "[RXV-Server 1.a6:$runningNetworkServers waiting for commands on port $PORT]\n";
-	}
-
-	while ($client = $server->accept()) 
-	{
-		$client->autoflush(1);
-		lock $stopNetworkServers;
-		if ( $stopNetworkServers )
-		{
-			close $client;
-			close $server;
-			lock $runningNetworkServers;
-			$runningNetworkServers--;
-		} else {
-			threads->new(\&serviceClient,1, $client)
-		}
-	} 
-}
-
 while ( $numServersToRun )
 {
 	threads->new(\&startNetworkServer);
 	$numServersToRun--;
 }
 
-	#$PortObj->write($STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
+	#serialThread("write",$STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
 
 for (;;) # forever
 {
-	my $count = 0;
+	logprint 'check $needSendReady;'."\n" if $debug;
+	if ( $needSendReady )
+	{
+		logprint ' lock $needSendReady;'."\n" if $debug;
+		lock $needSendReady;
+		logprint ' locked $needSendReady;'."\n" if $debug;
+		sendReady();
+		$needSendReady = 0;
+		logprint ' cond_broadcast $needSendReady;'."\n" if $debug;
+		cond_broadcast($needSendReady);
+		logprint ' unlocked $needSendReady;'."\n" if $debug;
+	}
 
 	{
+		logprint ' lock %input;'."\n" if $debug;
 		lock %input;
-	
-		for $id ( keys %input )
+		logprint " locked input\n" if $debug;
+
+		logprint " unlocked input\n" if $debug;
+		logprint " cond_wait input\n" if $debug;
+		cond_wait(%input) until int(keys %input);
+		logprint " locked input\n" if $debug;
+		logprint " unlocked input\n" if $debug;
+	}
+
+	for my $id ( keys %input )
+	{
+		if ( defined($input{$id}) )
 		{
-			if ( defined($input{$id}) )
+			my $result = sendControl($input{$id});
 			{
-				$count++;
-				my $result = sendControl($input{$id});
+				logprint ' lock %input;'."\n" if $debug;
+				lock %input;
+				logprint " locked input\n" if $debug;
 				undef($input{$id});
+				delete($input{$id});
+				logprint " unlocked input\n" if $debug;
+			}
+			{
+				logprint ' lock %output;'."\n" if $debug;
 				lock %output;
+				logprint " locked output\n" if $debug;
 				$output{$id} = $result;
+				cond_broadcast(%output);
+				logprint " unlocked output\n" if $debug;
 			}
 		}
 	}
-
-	if ( $count < 2 ) { sleep(0.5); }
 }
 #close the port - when the server is shut down
-undef $PortObj;
+serialThread("destroy");
 
 
 sub setZ1Power
 {
-	local($inVal) = @_;
-    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
-    if ( $yamaha{'Zone1Power'} eq $val ) { return ""; }
-    $yamaha{'Zone1Power'} = $val;
-    $msg = "Zone1Power turned $val.\n";
-    if ( "ON" eq $val )
-    {
-        $msg .= "Input: $yamaha{'Zone1Input'}  Volume: $yamaha{'Zone1Volume'}  Mute: $yamaha{'Zone1Mute'}\n";
-    }
-    return $msg;
+	my $inVal = shift()?1:0;
+	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+	if ( $yamaha{'Zone1Power'} eq $val ) { return ""; }
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+		$yamaha{'Zone1Power'} = $val;
+		logprint " unlocked yamaha\n" if $debug;
+	}
+	my $msg = "Zone1Power turned $val.\n";
+	if ( "ON" eq $val )
+	{
+	    $msg .= "Input: $yamaha{'Zone1Input'}  Volume: $yamaha{'Zone1Volume'}  Mute: $yamaha{'Zone1Mute'}\n";
+	}
+	return $msg;
 }
 
 sub setZ2Power
 {
-	local($inVal) = @_;
-    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
-    if ( $yamaha{'Zone2Power'} eq $val ) { return ""; }
-    $yamaha{'Zone2Power'} = $val;
-    $msg = "Zone2Power turned $val.\n";
-    if ( "ON" eq $val )
-    {
-        $msg .= "Input: $yamaha{'Zone2Input'}  Volume: $yamaha{'Zone2Volume'}  Mute: $yamaha{'Zone2Mute'}\n";
-    }
-    return $msg;
+	my $inVal = shift()?1:0;
+	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+	if ( $yamaha{'Zone2Power'} eq $val ) { return ""; }
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+		$yamaha{'Zone2Power'} = $val;
+		logprint " unlocked yamaha\n" if $debug;
+	}
+	my $msg = "Zone2Power turned $val.\n";
+	if ( "ON" eq $val )
+	{
+	    $msg .= "Input: $yamaha{'Zone2Input'}  Volume: $yamaha{'Zone2Volume'}  Mute: $yamaha{'Zone2Mute'}\n";
+	}
+	return $msg;
 }
 
 sub setZ3Power
 {
-	local($inVal) = @_;
-    $val = $Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
-    if ( $yamaha{'Zone3Power'} eq $val ) { return ""; }
-    $yamaha{'Zone3Power'} = $val;
-    $msg = "Zone3Power turned $val.\n";
-    if ( "ON" eq $val )
-    {
-        $msg .= "Input: $yamaha{'Zone3Input'}  Volume: $yamaha{'Zone3Volume'}  Mute: $yamaha{'Zone3Mute'}\n";
-    }
-    return $msg;
+	my $inVal = shift()?1:0;
+	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
+	if ( $yamaha{'Zone3Power'} eq $val ) { return ""; }
+	{
+		logprint ' lock %yamaha;'."\n" if $debug;
+		lock %yamaha;
+		logprint " locked yamaha\n" if $debug;
+		$yamaha{'Zone3Power'} = $val;
+		logprint " unlocked yamaha\n" if $debug;
+	}
+	my $msg = "Zone3Power turned $val.\n";
+	if ( "ON" eq $val )
+	{
+	    $msg .= "Input: $yamaha{'Zone3Input'}  Volume: $yamaha{'Zone3Volume'}  Mute: $yamaha{'Zone3Mute'}\n";
+	}
+	return $msg;
 }
 
 sub atoi
 {
-	local($inStr) = @_;
-	$retVal = 0;
+	my $inStr = shift;
+	my $retVal = 0;
 	while ( $inStr =~ s/(.)// )
 	{
-		$char = $1;
+		my $char = $1;
 		$retVal <<= 4;
-		$num = ord($char);
+		my $num = ord($char);
 		if ( $num >= 0x30 && $num <= 0x39 ) { $retVal += ($num - 0x30); }
 		elsif ( $num >= 0x41 && $num <= 0x46 ) { $retVal += (10 + $num - 0x41); }
-		else { print "atoi error at $char ($num) $retVal $inStr\n" and exit; }
+		else { logprint "atoi error at $char ($num) $retVal $inStr\n" and exit; }
 	}
 	return $retVal;
 }
 
 sub itoa
 {
-	local($inNum) = @_;
-	$retVal = "";
+	my $inNum = shift;
+	my $retVal = "";
 	while ( $inNum > 0 )
 	{
-		$char = $inNum % 16;
+		my $char = $inNum % 16;
 		$inNum >>= 4;
 		if ( $char < 10 ) { $char += 0x30; }
 		else { $char += (0x41-10); }
@@ -1352,19 +2560,19 @@ sub itoa
 }
 
 # Convert a string into hex for easier viewing by people.
-sub str2hex 
+sub str2hex
 {
-    local ($line) = @_;
-    $line =~ s/(.)/sprintf("%02x ",ord($1))/eg;
-    return $line;
+	my $line = shift;
+	$line =~ s/(.)/sprintf("%02x ",ord($1))/eg;
+	return $line;
 }
 
 # $string = hex2str ( $hexstring );
 # Where string is of the form "xx xx xx xx" where x is 0-9a-f
 # hex numbers are limited to 8 bits.
-sub hex2str 
+sub hex2str
 {
-    local ($l) = @_;
-    $l =~ s/([0-9a-f]{1,2})\s*/sprintf("%c",hex($1))/egi;
-    return $l;
+	my $l = shift;
+	$l =~ s/([0-9a-f]{1,2})\s*/sprintf("%c",hex($1))/egi;
+	return $l;
 }
