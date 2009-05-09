@@ -4,7 +4,7 @@
 #   Control software for certain Yamaha A/V receivers.
 #   This is independently developed software with no relation to Yamaha.
 #
-#   Copyright 2006-2008 Mark Jerde
+#   Copyright 2006-2009 Mark Jerde
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -100,16 +100,9 @@ sub assert
 	exit;
 }
 
-my $windows = 0;
-if ( $OSNAME eq "MSWin32" ) { $windows = 1; }
-if ($OSNAME eq "MSWin32")
-{
-	eval "use Win32::SerialPort 0.15";
-	die "couldn't load module : $!\n$@" if ($@);
-} else {
-	eval "use Device::SerialPort 0.15";
-	die "couldn't load module : $!\n$@" if ($@);
-}
+my $starnix = 1; # default to being a *NIX
+my $osname = $^O;
+if ( $osname eq "MSWin32" ) { $starnix = 0; }
 
 ## Put timestamps on every line of STDOUT
 #-- Doesn't play well with threads.
@@ -129,6 +122,99 @@ if ($OSNAME eq "MSWin32")
 
 my $PORT = 9000;
 my $numServersToRun = 1;
+my $forward = "";
+my $forwardReceiver = "";
+my $forwardReceiverPort = 9000;
+my $forwardOther = "";
+my $forwardOtherPort = 9000;
+
+eval "use Getopt::Long";
+if ($@)
+{
+	if ( defined(shift) )
+	{
+		logprint "Command-line parameters are not supported unless Getopt::Long is installed.\nTerminating.\n";
+		exit;
+	}
+} else {
+	GetOptions("port=i"=>\$PORT,
+	           "forward|f=s"=>\$forward,
+	           "forward_receiver|fr=s"=>\$forwardReceiver,
+	           "forward_other|fo=s"=>\$forwardOther);
+	my $temp = shift;
+	if ( defined($temp) )
+	{
+		logprint "Unrecognized option: '$temp'.\nTerminating.\n";
+		exit;
+	}
+}
+
+if ( $forward ne "" )
+{
+	$forwardReceiver = $forward;
+	$forwardOther = $forward;
+}
+
+if ( ($forwardReceiver ne "") || ($forwardOther ne "") )
+{
+	eval "use Net::Telnet";
+	if ($@)
+	{
+		logprint "Forwarding is not supported unless Net::Telnet is installed.\nTerminating.\n";
+		exit;
+	}
+}
+
+if ( $forwardReceiver ne "" )
+{
+	my $fw = $forwardReceiver;
+	if ( $forwardReceiver =~ s/:(\d+)$// )
+	{
+		$forwardReceiverPort = $1;
+	}
+	my $telnet = new Net::Telnet('Host'=>$forwardReceiver,
+	                             'Port'=>$forwardReceiverPort);
+	$telnet->put("bye\n");
+	my $output = $telnet->get();
+
+	$telnet->close();
+
+	unless ( $output =~ m/RX-V\d+ Server [\S ]+ connection open/ )
+	{
+		logprint "Could not connect to $fw for forwarding.\nTerminating.\n";
+		exit;
+	}
+} else {
+	if ($osname eq "MSWin32")
+	{
+		eval "use Win32::SerialPort 0.15";
+		die "couldn't load module : $!\n$@" if ($@);
+	} else { # default 'linux'
+		eval "use Device::SerialPort 0.15";
+		die "couldn't load module : $!\n$@" if ($@);
+	}
+}
+
+if ( $forwardOther ne "" )
+{
+	my $fw = $forwardOther;
+	if ( $forwardOther =~ s/:(\d+)$// )
+	{
+		$forwardOtherPort = $1;
+	}
+	my $telnet = new Net::Telnet('Host'=>$forwardOther,
+	                             'Port'=>$forwardOtherPort);
+	$telnet->put("bye\n");
+	my $output = $telnet->get();
+
+	$telnet->close();
+
+	unless ( $output =~ m/RX-V\d+ Server [\S ]+ connection open/ )
+	{
+		logprint "Could not connect to $fw for forwarding.\nTerminating.\n";
+		exit;
+	}
+}
 
 # Shared resources:
 our %input  : shared; # Each command will have a new UID.
@@ -518,11 +604,19 @@ my %Spec =
 			    # --+ 7
 	            "Eval" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);{lock \%yamaha; \$yamaha{'Power'} = \$rdat?1:0; }\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((6==\$rdat||4==\$rdat||3==\$rdat||1==\$rdat)?1:0); \$info .= setZ3Power(\$rdat&1);"
 	          },
-#      "21" => { },
+      "21" => { "Name" => "Zone1Input",
+	            "Eval" => "\$yamaha{'6chInput'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(substr(\$rdat,0,1))]; \$yamaha{'Zone1Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(substr(\$rdat,1,1))];"
+	          },
 #      "22" => { },
-#      "23" => { },
-#      "24" => { },
-#      "25" => { },
+      "23" => { "Name" => "Zone1Mute",
+	            "Eval" => "\$yamaha{'Zone1Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)];"
+	          },
+      "24" => { "Name" => "Zone2Input",
+	            "Eval" => "\$yamaha{'Zone2Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];"
+	          },
+      "25" => { "Name" => "Zone2Mute",
+	            "Eval" => "\$yamaha{'Zone2Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)];"
+	          },
       "26" => { "Name" => "Master Volume",
 	            "Eval" => "\$yamaha{'Zone1Volume'} = atoi(\$rdat);"
 	          }
@@ -543,8 +637,10 @@ my %Spec =
 #exit;
 ## END OF DO-NOT-DELETE ##
 
-my $PortName = "COM1";
-if ( !$windows ) { $PortName = "/dev/ttyS0"; }
+my $PortName = "";
+if ( $osname eq "MSWin32" ) { $PortName = "COM1"; }
+elsif ( $osname eq "darwin" ) { $PortName = ""; }
+elsif ( $osname eq "linux" ) { $PortName = "/dev/ttyS0"; }
 my $PortObj;
 
 # SerialPort probably isn't threaded, so protect it with a single-function
@@ -617,7 +713,11 @@ async { # serial thread loop
 		cond_wait($serialComSemaphore) until $serialComSemaphore == -1; # Thread
 		logprint ' locked $serialComSemaphore;'."\n" if $debug;
 		undef @serialOutput;
-		if ( $serialInput[0] eq "setup" )
+		if ( $forwardReceiver ne "" )
+		{
+			# Eat all of our init actions talking to the receiver.
+		}
+		elsif ( $serialInput[0] eq "setup" )
 		{
 			setupSerialPort();
 			$lastSend = time;
@@ -658,7 +758,7 @@ sub setupSerialPort # Only called from the serial thread loop.
 {
 	undef $PortObj;
 
-	if ( $windows )
+	if ( $osname eq "windows" )
 	{
 		$PortObj = new Win32::SerialPort ($PortName)
 		       || die "Can't open $PortName: $^E\n";
@@ -1563,7 +1663,7 @@ sub sendControlToServer
 
 my $macroDirectory = "";
 if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
-    ((!$windows) && -e "/etc/rxv2400_rxm") )
+    ($starnix && -e "/etc/rxv2400_rxm") )
 {
 	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
 	{
@@ -1659,6 +1759,32 @@ sub decode
 	my $client = shift;
 	$_ = $inStr;
 
+	if ( /^Control/ || /^cstatus/ || /^status/ )
+	{
+		if ( $forwardReceiver ne "" )
+		{
+			my $telnet = new Net::Telnet('Host'=>$forwardReceiver,
+			                             'Port'=>$forwardReceiverPort);
+			my $output = $telnet->get(); # Clear out the welcome text.
+			$telnet->put("$_\nbye\n");
+			$output = $telnet->get();
+			print $client $output;
+
+			$telnet->close();
+		}
+	} else {
+		if ( $forwardOther ne "" )
+		{
+			my $telnet = new Net::Telnet('Host'=>$forwardOther,
+			                             'Port'=>$forwardOtherPort);
+			my $output = $telnet->get(); # Clear out the welcome text.
+			$telnet->put("$_\nbye\n");
+			$output = $telnet->get();
+			print $client $output;
+
+			$telnet->close();
+		}
+	}
 	if ( /^Control/ )
 	{
 		s/^Control\s*//;
@@ -1677,12 +1803,12 @@ sub decode
 		printStatus($client,1);
 	} elsif ( /^play/i ) {
 		s/play\s*//;
-		if ( $windows )
+		if ( $osname eq 'windows' )
 		{
 			# Fork since this will never close on it's own.
 			# This will interrupt current audio.
 			system("fork.pl \"f:\\Program Files\\Windows Media Player\\wmplayer.exe\" \"$_\"");
-		} else {
+		} elsif ( $osname eq 'linux' ) {
 			# Stop any previously run so we don't get mixed audio.
 			system("killall shuffle.pl");
 			system("killall mpg123");
@@ -2016,54 +2142,57 @@ sub decode
 
 serialThread("setup");
 
-async { # Read data loop.
-	my $readless = 0;
-	for (;;) # forever
-	{
-		if ( !readData() )
+if ( $forwardReceiver eq "" )
+{
+	async { # Read data loop.
+		my $readless = 0;
+		for (;;) # forever
 		{
-			if ( ($lastSend > $lastRecv) && (($lastSend+10) < time) && !$needSendReady)
+			if ( !readData() )
 			{
-				logprint "Ten seconds of action without reaction.  Sending Ready command.\n";
-				# After ten seconds of action without reaction we send a Ready command.
-				async { # Don't block the read thread.
-					my $letItBeMe = 0;
-					{
-						logprint ' lock $needSendReady;'."\n" if $debug;
-						lock $needSendReady;
-						logprint ' locked $needSendReady;'."\n" if $debug;
-						if ( ! $needSendReady )
+				if ( ($lastSend > $lastRecv) && (($lastSend+10) < time) && !$needSendReady)
+				{
+					logprint "Ten seconds of action without reaction.  Sending Ready command.\n";
+					# After ten seconds of action without reaction we send a Ready command.
+					async { # Don't block the read thread.
+						my $letItBeMe = 0;
 						{
-							$letItBeMe = 1;
-							$needSendReady = 1;
-							logprint ' unlocked $needSendReady;'."\n" if $debug;
-							logprint ' cond_wait $needSendReady;'."\n" if $debug;
-							cond_wait($needSendReady) until $needSendReady == 0;
+							logprint ' lock $needSendReady;'."\n" if $debug;
+							lock $needSendReady;
 							logprint ' locked $needSendReady;'."\n" if $debug;
+							if ( ! $needSendReady )
+							{
+								$letItBeMe = 1;
+								$needSendReady = 1;
+								logprint ' unlocked $needSendReady;'."\n" if $debug;
+								logprint ' cond_wait $needSendReady;'."\n" if $debug;
+								cond_wait($needSendReady) until $needSendReady == 0;
+								logprint ' locked $needSendReady;'."\n" if $debug;
+							}
+							logprint ' unlocked $needSendReady;'."\n" if $debug;
 						}
-						logprint ' unlocked $needSendReady;'."\n" if $debug;
-					}
-					# Resend unfulfilled commands.
-					if ( $letItBeMe )
-					{
-						foreach my $i ( sort { $a <=> $b } keys %expectStimulus )
+						# Resend unfulfilled commands.
+						if ( $letItBeMe )
 						{
-							serialThread("write",$expectStimulus{$i});
+							foreach my $i ( sort { $a <=> $b } keys %expectStimulus )
+							{
+								serialThread("write",$expectStimulus{$i});
+							}
 						}
-					}
-				};
+					};
+				}
+				if ( $readless < 50 )
+				{
+					$readless++;
+				}
+				# Sleep a tenth of a second for every five $readless.
+				select(undef,undef,undef,0.1*int($readless/5));
+			} else {
+				$readless = 0;
 			}
-			if ( $readless < 50 )
-			{
-				$readless++;
-			}
-			# Sleep a tenth of a second for every five $readless.
-			select(undef,undef,undef,0.1*int($readless/5));
-		} else {
-			$readless = 0;
 		}
-	}
-};
+	};
+}
 
 sendInit();
 #sendReady();
@@ -2178,7 +2307,8 @@ sub runSchedule
 				$schedule{$id}{'nextRun'} += time; # Make sure we don't hit it before it is deleted..
 				$delete = 1;
 			}
-			threads->new(\&serviceScheduled,$id,$delete);
+			my $child = threads->new(\&serviceScheduled,$id,$delete);
+			$child->detach();
 		} else {
 			if ( ($nextTime > $schedule{$id}{'nextRun'})
 			   ||(-1 == $nextTime) )
@@ -2387,8 +2517,9 @@ sub startNetworkServer
 			$runningNetworkServers--;
 			logprint " unlocked runningNetworkServers\n" if $debug;
 		} else {
-			threads->new(\&serviceClient,1, $client);
+			my $child = threads->new(\&serviceClient,1, $client);
 			close $client;
+			$child->detach();
 		}
 		logprint " unlocked stopNetworkServers\n" if $debug;
 	}
@@ -2397,7 +2528,7 @@ sub startNetworkServer
 
 if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 	readMacroFile("$ENV{'HOME'}/.rxv2400_rxm");
-} elsif ( (!$windows) && -e "/etc/rxv2400_rxm" ) {
+} elsif ( $starnix && -e "/etc/rxv2400_rxm" ) {
 	readMacroFile("/etc/rxv2400_rxm");
 } elsif ( -d "macro" && -e "macro/default.rxm" ) {
 	readMacroFile("macro/default.rxm");
@@ -2407,8 +2538,9 @@ if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ) {
 
 while ( $numServersToRun )
 {
-	threads->new(\&startNetworkServer);
+	my $child = threads->new(\&startNetworkServer);
 	$numServersToRun--;
+	$child->detach();
 }
 
 	#serialThread("write",$STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
