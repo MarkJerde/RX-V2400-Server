@@ -31,8 +31,8 @@
 #   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-my $version = "2.0";
-# version 2.0 of rxv2400server.pl ##################################
+my $version = "2.3";
+# version 2.3 of rxv2400server.pl ##################################
 ####################################################################
 ############## hacked by Mark Jerde, fall 05 (mjerde3@charter.net) #
 ################# further hacked over the years through feb 2011 ###
@@ -56,8 +56,8 @@ my $version = "2.0";
 # connected) that performs the operations allowed by the Yamaha    #
 # receiver.                                                        #
 ####################################################################
-# before the server starts listening...							   #
-# ...the serial-port is opened									   #
+# before the server starts listening...                            #
+# ...the serial-port is opened                                     #
 ####################################################################
 
 use 5.008;             # 5.8 required for stable threading
@@ -77,7 +77,6 @@ use Sys::Hostname;
 $| = 1; # Set STDOUT to line buffering even when attached to a file.
 
 my $cmd = $0;
-print "cmd $cmd\n";
 
 my $endedcr = 1;
 sub logprint
@@ -256,13 +255,21 @@ $runningNetworkServers = 0;
 our $debug : shared;
 $debug = 0;
 
+sub dbglogprint
+{
+	logprint (shift) if $debug;
+}
+
 if ( !defined($ENV{'HOME'}) )
 {
 	logprint "warning: \$HOME is undefined.  Setting to current directory.\n";
 	$ENV{'HOME'} = ".";
 }
 
-chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
+if ($osname eq "MSWin32")
+{
+	chdir("F:\\Documents and Settings\\All\ Users\\Documents\\My Music\\Upload");
+}
 
 my $STX = hex2str("02");
 my $ETX = hex2str("03");
@@ -271,220 +278,190 @@ my $DC2 = hex2str("12");
 my $DC3 = hex2str("13");
 my $DC4 = hex2str("14");
 
-my %Spec =
-( "R0161" =>
-  { "Configuration" =>
-    { "System" => { "OK" => "0" , "Busy" => "1" , "OFF" => "2" },
-      "Power" => { "OFF" => "0" , "ON" => "1" },
-	  # The zone power status is incorrect in the documentation.
-	  # And it's slightly different between Configuration messages
-	  # and Report messages.
-	  # It's silly.
-	  # Really.
-      "PowerDecode" => {
-	  	"0" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"1" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"2" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"3" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"4" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"5" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"6" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"7" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  },
-      "ReportPowerDecode" => {
-	  	"0" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"1" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"2" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'ON';    # Different
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"3" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"4" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'OFF';  # Different
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"5" => "\$yamaha{'Zone1Power'} = 'ON';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  	"6" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'ON';
-		        \$yamaha{'Zone3Power'} = 'OFF';",
-	  	"7" => "\$yamaha{'Zone1Power'} = 'OFF';
-		        \$yamaha{'Zone2Power'} = 'OFF';
-		        \$yamaha{'Zone3Power'} = 'ON';",
-	  },
-      "ReportPowerEncode" => "((\$z1&\$z2)?(\$z3?1:4):((\$z1^\$z2)?(\$z1?(\$z3?5:2):(\$z3?3:6)):(\$z3?7:0)))",
-	  "Input" => [ "PHONO" , "CD" , "TUNER" , "CD-R" , "MD/TAPE" , "DVD" , "D-TV/LD" , "CABLE/SAT" , "SAT" , "VCR1" , "VCR2/DVR" , "VCR3" , "V-AUX" ],
-	  "InputEncode" => { "PHONO" => "0" , "CD" => "1" , "TUNER" => "2" , "CD-R" => "3" , "MD/TAPE" => "4" , "DVD" => "5" , "D-TV/LD" => "6" , "CABLE/SAT" => "7" , "SAT" => "8" , "VCR1" => "9" , "VCR2/DVR" => "A" , "VCR3" => "B" , "V-AUX" => "C" },
-      "OffOn" => [ "OFF" , "ON" ],
-      "ABCDE" => [ "A" , "B" , "C" , "D" , "E" ],
-      "InputMode" => [ "AUTO" , "DD/RF" , "DTS" , "DIGITAL" , "ANALOG" , "AAC" ],
-    },
-	"macro" =>
-    {
-    },
-    "Control" =>
-    { "Prefix" => $STX,
-      "Suffix" => $ETX,
-      "Operation" =>
-      { "Prefix" => "07",
-        "Zone1Volume" => { "Prefix" => "A1" , "Up" => "A" , "Down" => "B" },
-        "Zone1Mute" => { "Prefix" => "EA" , "ON" => "2" , "OFF" => "3" },
-        "Zone1Input" => { "Prefix" => "A" ,
-                          "PHONO" => "14" ,
-                          "CD" => "15" ,
-                          "TUNER" => "16" ,
-                          "CD-R" => "19" ,
-                          "MD/TAPE" => "C9" ,
-                          "DVD" => "C1" ,
-                          "D-TV/LD" => "54" ,
-                          "CABLE/SAT" => "C0" ,
-                          "SAT" => "CA" ,
-                          "VCR1" => "0F" ,
-                          "VCR2/DVR" => "13" ,
-                          "VCR3" => "C8" ,
-                          "V-AUX" => "55" },
-        "6chInput" => { "Prefix" => "EA" , "ON" => "4" , "OFF" => "5" },
-        "InputMode" => { "Prefix" => "EA" ,
-                         "AUTO" => "6" ,
-                         "DD/RF" => "7" ,
-                         "DTS" => "8" ,
-                         "DIGITAL" => "9" ,
-                         "ANALOG" => "A" ,
-                         "AAC" => "B" },
-        "Zone2Volume" => { "Prefix" => "AD" , "Up" => "A" , "Down" => "B" },
-        "Zone2Mute" => { "Prefix" => "EA" , "ON" => "0" , "OFF" => "1" },
-        "Zone2Input" => { "Prefix" => "A" ,
-                          "PHONO" => "D0" ,
-                          "CD" => "D1" ,
-                          "TUNER" => "D2" ,
-                          "CD-R" => "D4" ,
-                          "MD/TAPE" => "CF" ,
-                          "DVD" => "CD" ,
-                          "D-TV/LD" => "D9" ,
-                          "CABLE/SAT" => "CC" ,
-                          "SAT" => "CB" ,
-                          "VCR1" => "D6" ,
-                          "VCR2/DVR" => "D7" ,
-                          "VCR3" => "CE" ,
-                          "V-AUX" => "D8" },
-        "Power" => { "Prefix" => "A1" , "ON" => "D" , "OFF" => "E" , "Expect" => 1 }, # Wait for Power because it blocks other ops.
-        "Zone1Power" => { "Prefix" => "E7" , "ON" => "E" , "OFF" => "F" , "Expect" => 1 }, # Same as above.
-        "Zone2Power" => { "Prefix" => "EB" , "ON" => "A" , "OFF" => "B" , "Expect" => 1 }, # Same as above.
-        "Zone3Power" => { "Prefix" => "AE" , "ON" => "D" , "OFF" => "E" , "Expect" => 1 }, # Same as above.
-        "Zone3Mute" => { "Prefix" => "E" , "ON" => "2" , "OFF" => "6" , "Suffix" => "6" },
-        "Zone3Volume" => { "Prefix" => "AF" , "Up" => "D" , "Down" => "E" },
-        "Zone3Input" => { "Prefix" => "AF" ,
-                          "PHONO" => "1" ,
-                          "CD" => "2" ,
-                          "TUNER" => "3" ,
-                          "CD-R" => "5" ,
-                          "MD/TAPE" => "4" ,
-                          "DVD" => "C" ,
-                          "D-TV/LD" => "6" ,
-                          "CABLE/SAT" => "7" ,
-                          "SAT" => "8" ,
-                          "VCR1" => "9" ,
-                          "VCR2/DVR" => "A" ,
-                          "VCR3" => "B" ,
-                          "V-AUX" => "0" },
-        #...,
-        "TunerPreset" => { "Prefix" => "AE" ,
-                           "Page" => { "A" => "0" , "B" => "1" , "C" => "2" , "D" => "3" , "E" => "4" } ,
-                           "Num" => { "1" => "5" , "2" => "6" , "3" => "7" , "4" => "8" , "5" => "9" , "6" => "A" , "7" => "B" , "8" => "C" } },
-        #...,
-        "SpeakerRelay" => { "Prefix" => "EA" ,
-                            "A" => { "ON" => "B" , "OFF" => "C" } ,
-                            "B" => { "ON" => "D" , "OFF" => "E" } }
-      },
-      "System" =>
-      { "Prefix" => "2",
-        "Zone1Volume" => { "Prefix" => "30" ,
-                           "Eval" => "val" ,
-                           "Up" => "\$yamaha{'Zone1Volume'}++;
-                                    itoa(\$yamaha{'Zone1Volume'});" ,
-                           "Down" => "\$yamaha{'Zone1Volume'}--;
-                                      itoa(\$yamaha{'Zone1Volume'});",
-                           "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
-                                                    itoa(\$yamaha{'Zone1Volume'});"},
-                           "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
-                                                 itoa(\$yamaha{'Zone1Volume'});"}
-        },
-        "Zone2Volume" => { "Prefix" => "31" ,
-                           "Eval" => "val" ,
-                           "Up" => "\$yamaha{'Zone2Volume'}++;
-                                    itoa(\$yamaha{'Zone2Volume'});" ,
-                           "Down" => "\$yamaha{'Zone2Volume'}--;
-                                      itoa(\$yamaha{'Zone2Volume'});",
-                           "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
-                                                    itoa(\$yamaha{'Zone2Volume'});"},
-                           "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
-                                                 itoa(\$yamaha{'Zone2Volume'});"}
-        },
-        "Zone3Volume" => { "Prefix" => "34" ,
-                           "Eval" => "val" ,
-                           "Up" => "\$yamaha{'Zone3Volume'}++;
-                                    itoa(\$yamaha{'Zone3Volume'});" ,
-                           "Down" => "\$yamaha{'Zone3Volume'}--;
-                                      itoa(\$yamaha{'Zone3Volume'});",
-                           "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
-                                                    itoa(\$yamaha{'Zone3Volume'});"},
-                           "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
-                                                 itoa(\$yamaha{'Zone3Volume'});"}
-        },
-      }
-    },
-    "Expect" =>
-    { "Operation" =>
-      { "Zone1Volume" => {  "Eval" => "val" , "Up" => "" , "Down" => "" },
-        "Zone1Mute" => {  "ON" => "2301" , "OFF" => "2300" },
-        "Zone1Input" => { "Eval" => "val" ,
-		                  "PHONO" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"0\"" ,
-                          "CD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"1\"" ,
-                          "TUNER" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"2\"" ,
-                          "CD-R" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"3\"" ,
-                          "MD/TAPE" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"4\"" ,
-                          "DVD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"5\"" ,
-                          "D-TV/LD" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"6\"" ,
-                          "CABLE/SAT" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"7\"" ,
-                          "SAT" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"8\"" ,
-                          "VCR1" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"9\"" ,
-                          "VCR2/DVR" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"A\"" ,
-                          "VCR3" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"B\"" ,
-                          "V-AUX" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"C\"" },
-        "6chInput" => { "Eval" => "val" ,
-		                "ON" => "211\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" ,
-						"OFF" => "210\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" },
-        "InputMode" => { "Eval" => "val" ,
-                         "AUTO" => "" ,
-                         "DD/RF" => "" ,
-                         "DTS" => "" ,
-                         "DIGITAL" => "" ,
-                         "ANALOG" => "" ,
-                         "AAC" => "" },
-#        "Zone2Volume" => {  "Up" => "A" , "Down" => "B" },
-#        "Zone2Mute" => {  "ON" => "0" , "OFF" => "1" },
-#        "Zone2Input" => { 
+my %Spec = (
+	"R0161" => {
+		"Configuration" => {
+			"System" => { "OK" => "0" , "Busy" => "1" , "OFF" => "2" },
+			"Power" => { "OFF" => "0" , "ON" => "1" },
+			# The zone power status is incorrect in the documentation.
+			# And it's slightly different between Configuration messages
+			# and Report messages.
+			# It's silly.
+			# Really.
+			"PowerDecode" => {
+				"0" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"1" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"2" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"3" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"4" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"5" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"6" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"7" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+			},
+			"ReportPowerDecode" => {
+				"0" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"1" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"2" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'ON';  # Different
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"3" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"4" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'OFF'; # Different
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"5" => "\$yamaha{'Zone1Power'} = 'ON';  \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+				"6" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'ON';
+				        \$yamaha{'Zone3Power'} = 'OFF';",
+				"7" => "\$yamaha{'Zone1Power'} = 'OFF'; \$yamaha{'Zone2Power'} = 'OFF';
+				        \$yamaha{'Zone3Power'} = 'ON';",
+			},
+			"ReportPowerEncode" =>
+				"((\$z1&\$z2)?(\$z3?1:4):((\$z1^\$z2)?(\$z1?(\$z3?5:2):(\$z3?3:6)):(\$z3?7:0)))",
+			"Input" => [ "PHONO" , "CD" , "TUNER" , "CD-R" , "MD/TAPE" , "DVD" , "D-TV/LD" ,
+			             "CABLE/SAT" , "SAT" , "VCR1" , "VCR2/DVR" , "VCR3" , "V-AUX" ],
+			"InputEncode" => { "PHONO" =>   "0" , "CD" =>        "1" , "TUNER" => "2" ,
+			                   "CD-R" =>    "3" , "MD/TAPE" =>   "4" , "DVD" =>   "5" ,
+			                   "D-TV/LD" => "6" , "CABLE/SAT" => "7" , "SAT" =>   "8" ,
+			                   "VCR1" =>    "9" , "VCR2/DVR" =>  "A" , "VCR3" =>  "B" ,
+			                   "V-AUX" => "C" },
+			"OffOn" => [ "OFF" , "ON" ],
+			"ABCDE" => [ "A" , "B" , "C" , "D" , "E" ],
+			"InputMode" => [ "AUTO" , "DD/RF" , "DTS" , "DIGITAL" , "ANALOG" , "AAC" ],
+		},
+		"macro" => { },
+		"Control" => {
+			"Prefix" => $STX,
+			"Suffix" => $ETX,
+			"Operation" => {
+				"Prefix" => "07",
+				"Zone1Volume" => { "Prefix" => "A1" , "Up" => "A" , "Down" => "B" },
+				"Zone1Mute" =>   { "Prefix" => "EA" , "ON" => "2" , "OFF" => "3" },
+				"Zone1Input" => { "Prefix" => "A" ,
+				                  "PHONO" =>   "14" , "CD" =>        "15" , "TUNER" => "16" ,
+				                  "CD-R" =>    "19" , "MD/TAPE" =>   "C9" , "DVD" =>   "C1" ,
+				                  "D-TV/LD" => "54" , "CABLE/SAT" => "C0" , "SAT" =>   "CA" ,
+				                  "VCR1" =>    "0F" , "VCR2/DVR" =>  "13" , "VCR3" =>  "C8" ,
+				                  "V-AUX" =>   "55" },
+				"6chInput" =>  { "Prefix" => "EA" , "ON" => "4" , "OFF" => "5" },
+				"InputMode" => { "Prefix" => "EA" ,
+				                 "AUTO" =>    "6" , "DD/RF" =>  "7" , "DTS" => "8" ,
+				                 "DIGITAL" => "9" , "ANALOG" => "A" , "AAC" => "B" },
+				"Zone2Volume" => { "Prefix" => "AD" , "Up" => "A" , "Down" => "B" },
+				"Zone2Mute" =>   { "Prefix" => "EA" , "ON" => "0" , "OFF" => "1" },
+				"Zone2Input" => { "Prefix" => "A" ,
+				                  "PHONO" =>   "D0" , "CD" =>        "D1" , "TUNER" => "D2" ,
+				                  "CD-R" =>    "D4" , "MD/TAPE" =>   "CF" , "DVD" =>   "CD" ,
+				                  "D-TV/LD" => "D9" , "CABLE/SAT" => "CC" , "SAT" =>   "CB" ,
+				                  "VCR1" =>    "D6" , "VCR2/DVR" =>  "D7" , "VCR3" =>  "CE" ,
+				                  "V-AUX" =>   "D8" },
+				"Power" => { "Prefix" => "A1" ,
+				             "ON" => "D" , "OFF" => "E" ,
+				             "Expect" => 1 }, # Wait for Power because it blocks other ops.
+				"Zone1Power" => { "Prefix" => "E7" ,
+				                  "ON" => "E" , "OFF" => "F" ,
+				                  "Expect" => 1 }, # Same as above.
+				"Zone2Power" => { "Prefix" => "EB" ,
+				                  "ON" => "A" , "OFF" => "B" ,
+				                  "Expect" => 1 }, # Same as above.
+				"Zone3Power" => { "Prefix" => "AE" ,
+				                  "ON" => "D" , "OFF" => "E" ,
+				                  "Expect" => 1 }, # Same as above.
+				"Zone3Mute" => { "Prefix" => "E" , "ON" => "2" , "OFF" => "6" , "Suffix" => "6" },
+				"Zone3Volume" => { "Prefix" => "AF" , "Up" => "D" , "Down" => "E" },
+				"Zone3Input" => { "Prefix" => "AF" ,
+				                  "PHONO" =>   "1" , "CD" =>        "2" , "TUNER" => "3" ,
+				                  "CD-R" =>    "5" , "MD/TAPE" =>   "4" , "DVD" =>   "C" ,
+				                  "D-TV/LD" => "6" , "CABLE/SAT" => "7" , "SAT" =>   "8" ,
+				                  "VCR1" =>    "9" , "VCR2/DVR" =>  "A" , "VCR3" =>  "B" ,
+				                  "V-AUX" =>   "0" },
+				#...,
+				"TunerPreset" => { "Prefix" => "AE" ,
+				                   "Page" => { "A" => "0" , "B" => "1" , "C" => "2" ,
+				                               "D" => "3" , "E" => "4" } ,
+				                   "Num" => { "1" => "5" , "2" => "6" , "3" => "7" , "4" => "8" ,
+				                              "5" => "9" , "6" => "A" , "7" => "B" , "8" => "C" } },
+				#...,
+				"SpeakerRelay" => { "Prefix" => "EA" ,
+				                    "A" => { "ON" => "B" , "OFF" => "C" } ,
+				                    "B" => { "ON" => "D" , "OFF" => "E" } }
+			},
+			"System" => {
+				"Prefix" => "2",
+				"Zone1Volume" => { "Prefix" => "30" ,
+				                   "Eval" => "val" ,
+				                   "Up" => "\$yamaha{'Zone1Volume'}++;
+				                            itoa(\$yamaha{'Zone1Volume'});" ,
+				                   "Down" => "\$yamaha{'Zone1Volume'}--;
+				                              itoa(\$yamaha{'Zone1Volume'});",
+				                   "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
+				                                            itoa(\$yamaha{'Zone1Volume'});"},
+				                   "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
+				                                         itoa(\$yamaha{'Zone1Volume'});"}
+				},
+				"Zone2Volume" => { "Prefix" => "31" ,
+				                   "Eval" => "val" ,
+				                   "Up" => "\$yamaha{'Zone2Volume'}++;
+				                            itoa(\$yamaha{'Zone2Volume'});" ,
+				                   "Down" => "\$yamaha{'Zone2Volume'}--;
+				                              itoa(\$yamaha{'Zone2Volume'});",
+				                   "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
+				                                            itoa(\$yamaha{'Zone2Volume'});"},
+				                   "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
+				                                         itoa(\$yamaha{'Zone2Volume'});"}
+				},
+				"Zone3Volume" => { "Prefix" => "34" ,
+				                   "Eval" => "val" ,
+				                   "Up" => "\$yamaha{'Zone3Volume'}++;
+				                            itoa(\$yamaha{'Zone3Volume'});" ,
+				                   "Down" => "\$yamaha{'Zone3Volume'}--;
+				                              itoa(\$yamaha{'Zone3Volume'});",
+				                   "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
+				                                            itoa(\$yamaha{'Zone3Volume'});"},
+				                   "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
+				                                         itoa(\$yamaha{'Zone3Volume'});"}
+				}
+			}
+		},
+		"Expect" => {
+			"Operation" => {
+				"Zone1Volume" => { "Eval" => "val" , "Up" => "" , "Down" => "" },
+				"Zone1Mute" => { "ON" => "2301" , "OFF" => "2300" },
+				"Zone1Input" => { "Eval" => "val" ,
+				                  "PHONO" =>     "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"0\"" ,
+				                  "CD" =>        "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"1\"" ,
+				                  "TUNER" =>     "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"2\"" ,
+				                  "CD-R" =>      "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"3\"" ,
+				                  "MD/TAPE" =>   "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"4\"" ,
+				                  "DVD" =>       "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"5\"" ,
+				                  "D-TV/LD" =>   "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"6\"" ,
+				                  "CABLE/SAT" => "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"7\"" ,
+				                  "SAT" =>       "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"8\"" ,
+				                  "VCR1" =>      "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"9\"" ,
+				                  "VCR2/DVR" =>  "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"A\"" ,
+				                  "VCR3" =>      "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"B\"" ,
+				                  "V-AUX" =>     "\"21\".((\$yamaha{'6chInput'}eq'ON')?1:0).\"C\"" },
+				"6chInput" => { "Eval" => "val" ,
+				                "ON" =>  "211\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" ,
+				                "OFF" => "210\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'InputEncode'}{\$yamaha{'Zone1Input'}}" },
+				"InputMode" => { "Eval" => "val" ,
+				                 "AUTO" => "" ,
+				                 "DD/RF" => "" ,
+				                 "DTS" => "" ,
+				                 "DIGITAL" => "" ,
+				                 "ANALOG" => "" ,
+				                 "AAC" => "" },
+#        "Zone2Volume" => { "Up" => "A" , "Down" => "B" },
+#        "Zone2Mute" => { "ON" => "0" , "OFF" => "1" },
+#        "Zone2Input" => {
 #                          "PHONO" => "D0" ,
 #                          "CD" => "D1" ,
 #                          "TUNER" => "D2" ,
@@ -498,13 +475,25 @@ my %Spec =
 #                          "VCR2/DVR" => "D7" ,
 #                          "VCR3" => "CE" ,
 #                          "V-AUX" => "D8" },
-        "Power" => {  "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;my \$z2 = \$z1;my \$z3 = \$z1;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
-        "Zone1Power" => {  "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
-        "Zone2Power" => {  "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;my \$z2 = ('ON'eq\$car)?1:0;my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
-        "Zone3Power" => {  "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;my \$z3 = ('ON'eq\$car)?1:0;'200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
-#        "Zone3Mute" => {  "ON" => "2" , "OFF" => "6" },
-#        "Zone3Volume" => {  "Up" => "D" , "Down" => "E" },
-#        "Zone3Input" => { 
+				"Power" => { "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;
+				                        my \$z2 = \$z1;
+				                        my \$z3 = \$z1;
+				                        '200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+				"Zone1Power" => { "Eval" => "my \$z1 = ('ON'eq\$car)?1:0;
+				                             my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;
+				                             my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;
+				                             '200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+				"Zone2Power" => { "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;
+				                             my \$z2 = ('ON'eq\$car)?1:0;
+				                             my \$z3 = ('ON'eq\$yamaha{'Zone3Power'})?1:0;
+				                             '200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+				"Zone3Power" => { "Eval" => "my \$z1 = ('ON'eq\$yamaha{'Zone1Power'})?1:0;
+				                             my \$z2 = ('ON'eq\$yamaha{'Zone2Power'})?1:0;
+				                             my \$z3 = ('ON'eq\$car)?1:0;
+				                             '200'.eval(\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'ReportPowerEncode'})" },
+#        "Zone3Mute" => { "ON" => "2" , "OFF" => "6" },
+#        "Zone3Volume" => { "Up" => "D" , "Down" => "E" },
+#        "Zone3Input" => {
 #                          "PHONO" => "1" ,
 #                          "CD" => "2" ,
 #                          "TUNER" => "3" ,
@@ -519,17 +508,17 @@ my %Spec =
 #                          "VCR3" => "B" ,
 #                          "V-AUX" => "0" },
 #        #...,
-#        "TunerPreset" => { 
+#        "TunerPreset" => {
 #                           "Page" => { "A" => "0" , "B" => "1" , "C" => "2" , "D" => "3" , "E" => "4" } ,
 #                           "Num" => { "1" => "5" , "2" => "6" , "3" => "7" , "4" => "8" , "5" => "9" , "6" => "A" , "7" => "B" , "8" => "C" } },
 #        #...,
-#        "SpeakerRelay" => { 
+#        "SpeakerRelay" => {
 #                            "A" => { "ON" => "B" , "OFF" => "C" } ,
 #                            "B" => { "ON" => "D" , "OFF" => "E" } }
 #      },
 #      "System" =>
-#      { 
-#        "Zone1Volume" => { 
+#      {
+#        "Zone1Volume" => {
 #                           "Eval" => "val" ,
 #                           "Up" => "\$yamaha{'Zone1Volume'}++;
 #                                    itoa(\$yamaha{'Zone1Volume'});" ,
@@ -540,7 +529,7 @@ my %Spec =
 #                           "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
 #                                                 itoa(\$yamaha{'Zone1Volume'});"}
 #        },
-#        "Zone2Volume" => { 
+#        "Zone2Volume" => {
 #                           "Eval" => "val" ,
 #                           "Up" => "\$yamaha{'Zone2Volume'}++;
 #                                    itoa(\$yamaha{'Zone2Volume'});" ,
@@ -551,7 +540,7 @@ my %Spec =
 #                           "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
 #                                                 itoa(\$yamaha{'Zone2Volume'});"}
 #        },
-#        "Zone3Volume" => { 
+#        "Zone3Volume" => {
 #                           "Eval" => "val" ,
 #                           "Up" => "\$yamaha{'Zone3Volume'}++;
 #                                    itoa(\$yamaha{'Zone3Volume'});" ,
@@ -562,38 +551,47 @@ my %Spec =
 #                           "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
 #                                                 itoa(\$yamaha{'Zone3Volume'});"}
 #        },
-      }
-    },
-    "Report" =>
-    { "ControlType" => [ "serial" , "IR" , "panel" , "system" , "encoder" ],
-      "GuardStatus" => ["No" , "System" , "Setting" ],
-	  "00" => { "Name" => "System",
-	            "00" => { "Message" => "OK",
-				          "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};"
-						},
-                "01" => { "Message" => "Busy",
-	                      "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};"
-	                    },
-                "02" => { "Message" => "Power Off",
-	                      "Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};"
-	                    },
-	            "Eval" => "\$error .= \"ERROR: Invalid system status \$rcmd.\n\";"
-      },
-      "01" => { "Name" => "Warning",
-	            "00" => { "Message" => "Over current.",
-	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over current.\n\";"
-	                    },
-	            "01" => { "Message" => "DC detect.",
-	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: DC Detect.\n\";"
-	                    },
-	            "02" => { "Message" => "Power trouble.",
-	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: power trouble.\n\";"
-	                    },
-	            "03" => { "Message" => "Over heat.",
-	                      "Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over heat.\n\";"
-	                    },
-	            "Eval" => "\$error .= \"ERROR: SYSTEM WARNING \$rcmd.\n\";"
-	  },
+			}
+		},
+		"Report" => {
+			"ControlType" => [ "serial" , "IR" , "panel" , "system" , "encoder" ],
+			"GuardStatus" => ["No" , "System" , "Setting" ],
+			"00" => {
+				"Name" => "System",
+				"00" => {
+					"Message" => "OK",
+					"Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};"
+				},
+				"01" => {
+					"Message" => "Busy",
+					"Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'Busy'};"
+				},
+				"02" => {
+					"Message" => "Power Off",
+					"Eval" => "\$yamaha{'System'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'System'}{'OK'};\$yamaha{'Power'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Power'}{'OFF'};"
+				},
+				"Eval" => "\$error .= \"ERROR: Invalid system status \$rcmd.\n\";"
+			},
+			"01" => {
+				"Name" => "Warning",
+				"00" => {
+					"Message" => "Over current.",
+					"Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over current.\n\";"
+				},
+				"01" => {
+					"Message" => "DC detect.",
+					"Eval" => "\$error .= \"ERROR: SYSTEM WARNING: DC Detect.\n\";"
+				},
+				"02" => {
+					"Message" => "Power trouble.",
+					"Eval" => "\$error .= \"ERROR: SYSTEM WARNING: power trouble.\n\";"
+				},
+				"03" => {
+					"Message" => "Over heat.",
+					"Eval" => "\$error .= \"ERROR: SYSTEM WARNING: over heat.\n\";"
+				},
+				"Eval" => "\$error .= \"ERROR: SYSTEM WARNING \$rcmd.\n\";"
+			},
 #      "10" => "assert(14>atoi(\$rdat));\$yamaha{'Playback'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Playback'}[\$rdat];\$info .= \"Playback = \$yamaha{'Playback'}\n\";",
 #      "11" => "assert(12>atoi(\$rdat));\$yamaha{'Fs'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Fs'}[\$rdat];\$info .= \"Fs = \$yamaha{'Fs'}\n\";",
 #      "12" => "assert(3>atoi(\$rdat));\$yamaha{'EX/ES'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'EX/ES'}[\$rdat];\$info .= \"EX/ES = \$yamaha{'EX/ES'}\n\";",
@@ -601,38 +599,45 @@ my %Spec =
 #      "14" => "assert(2>atoi(\$rdat));\$yamaha{'REDdts'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'REDdts'}[\$rdat];\$info .= \"REDdts = \$yamaha{'REDdts'}\n\";",
 #      "15" => "assert(2>atoi(\$rdat));\$yamaha{'TunerTuned'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"TunerTuned = \$yamaha{'TunerTuned'}\n\";",
 #      "16" => "assert(2>atoi(\$rdat));\$yamaha{'Dts96/24'}=\$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[\$rdat];\$info .= \"Dts96/24 = \$yamaha{'Dts96/24'}\n\";",
-      "20" => { "Name" => "Power",
-	            # Spec is wrong for this encoding.
+			"20" => {
+				"Name" => "Power",
+				# Spec is wrong for this encoding.
 				# Correct is as follows.  + = on
-	            # 123 #
-			    # --- 0
-			    # +++ 1
-			    # +-- 2
-			    # -++ 3
-			    # ++- 4
-			    # +-+ 5
-			    # -+- 6
-			    # --+ 7
-	            "Eval" => "\$rdat=atoi(\$rdat);assert(8>\$rdat);{lock \%yamaha; \$yamaha{'Power'} = \$rdat?1:0; }\$info .= setZ1Power((((\$rdat%7)%3)+1)>>1); \$info .= setZ2Power((6==\$rdat||4==\$rdat||3==\$rdat||1==\$rdat)?1:0); \$info .= setZ3Power(\$rdat&1);"
-	          },
-      "21" => { "Name" => "Zone1Input",
-	            "Eval" => "\$yamaha{'6chInput'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(substr(\$rdat,0,1))]; \$yamaha{'Zone1Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(substr(\$rdat,1,1))]; onscreenInfo('Input',\$yamaha{'Zone1Input'});"
-	          },
-#      "22" => { },
-      "23" => { "Name" => "Zone1Mute",
-	            "Eval" => "\$yamaha{'Zone1Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)]; onscreenInfo('Mute',\$yamaha{'Zone1Mute'});"
-	          },
-      "24" => { "Name" => "Zone2Input",
-	            "Eval" => "\$yamaha{'Zone2Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];"
-	          },
-      "25" => { "Name" => "Zone2Mute",
-	            "Eval" => "\$yamaha{'Zone2Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)];"
-	          },
-      "26" => { "Name" => "Master Volume",
-	            "Eval" => "\$yamaha{'Zone1Volume'} = atoi(\$rdat); onscreenInfo('Volume',((\$yamaha{'Zone1Volume'}-199)/2).' dB');"
-	          }
-    }
-  }
+				# 123 #   123 #   123 #   123 #   123 #   123 #   123 #   123 #
+				# --- 0   +++ 1   +-- 2   -++ 3   ++- 4   +-+ 5   -+- 6   --+ 7
+				"Eval" => "\$rdat=atoi(\$rdat);
+				           assert(8>\$rdat);
+				           { lock \%yamaha; \$yamaha{'Power'} = \$rdat?1:0; }
+				           \$info .= setZ1Power((((\$rdat%7)%3)+1)>>1);
+				           \$info .= setZ2Power((6==\$rdat||4==\$rdat||3==\$rdat||1==\$rdat)?1:0);
+				           \$info .= setZ3Power(\$rdat&1);"
+			},
+			"21" => {
+				"Name" => "Zone1Input",
+				"Eval" => "\$yamaha{'6chInput'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(substr(\$rdat,0,1))];
+				           \$yamaha{'Zone1Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(substr(\$rdat,1,1))];
+				           onscreenInfo('Input',\$yamaha{'Zone1Input'});"
+			},
+#			"22" => { },
+			"23" => {
+				"Name" => "Zone1Mute",
+				"Eval" => "\$yamaha{'Zone1Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)]; onscreenInfo('Mute',\$yamaha{'Zone1Mute'});"
+			},
+			"24" => {
+				"Name" => "Zone2Input",
+				"Eval" => "\$yamaha{'Zone2Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];"
+			},
+			"25" => {
+				"Name" => "Zone2Mute",
+				"Eval" => "\$yamaha{'Zone2Mute'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(\$rdat)];"
+			},
+			"26" => {
+				"Name" => "Master Volume",
+				"Eval" => "\$yamaha{'Zone1Volume'} = atoi(\$rdat);
+				           onscreenInfo('Volume',((\$yamaha{'Zone1Volume'}-199)/2).' dB');"
+			}
+		}
+	}
 );
 
 ## DO NOT DELETE ##
@@ -673,35 +678,35 @@ sub serialThread
 		return;
 	}
 	{
-		logprint ' lock $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' lock $serialComSemaphore;'."\n";
 		lock $serialComSemaphore;
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
-		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
+		dbglogprint ' cond_wait $serialComSemaphore;'."\n";
 		cond_wait($serialComSemaphore) until $serialComSemaphore == 0; # Idle
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
 		undef @serialInput;
 		exit if ( defined($serialOutput[0]) && ($serialOutput[0] eq "destroyed") );
-		logprint ' didn\'t exit'."\n" if $debug;
+		dbglogprint ' didn\'t exit'."\n";
 		@serialInput = ($cmd,shift);
 		$serialComSemaphore = -1; # Thread
 		cond_broadcast($serialComSemaphore);
-		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
 	}
 	{
-		logprint ' lock $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' lock $serialComSemaphore;'."\n";
 		lock $serialComSemaphore;
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
-		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
+		dbglogprint ' cond_wait $serialComSemaphore;'."\n";
 		cond_wait($serialComSemaphore) until $serialComSemaphore == 1; # Function
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
 		my @output = @serialOutput;
 		$serialComSemaphore = 0; # Idle
 		cond_broadcast($serialComSemaphore);
-		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
 		return @output;
 	}
 }
@@ -711,20 +716,20 @@ async { # serial thread loop
 
 	{
 		lock $serialComSemaphore;
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
 		$serialComSemaphore = 0; # Idle
 		cond_broadcast($serialComSemaphore);
-		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
 	}
 	for (;;) # forever
 	{
 		lock $serialComSemaphore;
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
-		logprint ' cond_wait $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
+		dbglogprint ' cond_wait $serialComSemaphore;'."\n";
 		cond_wait($serialComSemaphore) until $serialComSemaphore == -1; # Thread
-		logprint ' locked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' locked $serialComSemaphore;'."\n";
 		undef @serialOutput;
 		if ( $forwardReceiver ne "" )
 		{
@@ -738,16 +743,16 @@ async { # serial thread loop
 		}
 		elsif ( $serialInput[0] eq "write" )
 		{
-			logprint "\$PortObj->write($serialInput[1]);\n" if $debug;
+			dbglogprint "\$PortObj->write($serialInput[1]);\n";
 			logprint "\$PortObj->write(".str2hex($serialInput[1]).");\n";
 			$PortObj->write($serialInput[1]);
 			$lastSend = time;
 		}
 		elsif ( $serialInput[0] eq "read" )
 		{
-			logprint "\$PortObj->read($serialInput[1]);\n" if $debug;
+			dbglogprint "\$PortObj->read($serialInput[1]);\n";
 			@serialOutput = $PortObj->read($serialInput[1]);
-			logprint "$serialOutput[0] , $serialOutput[1]\n" if $debug;
+			dbglogprint "$serialOutput[0] , $serialOutput[1]\n";
 			logprint "($serialOutput[0] , ".str2hex($serialOutput[1]).") = \$PortObj->read()\n" if $serialOutput[0];
 			$lastRecv = time if $serialOutput[0] != 0;
 		}
@@ -758,8 +763,8 @@ async { # serial thread loop
 		}
 		$serialComSemaphore = 1; # Function
 		cond_broadcast($serialComSemaphore);
-		logprint ' cond_broadcast $serialComSemaphore;'."\n" if $debug;
-		logprint ' unlocked $serialComSemaphore;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $serialComSemaphore;'."\n";
+		dbglogprint ' unlocked $serialComSemaphore;'."\n";
 	}
 };
 
@@ -773,7 +778,7 @@ sub setupSerialPort # Only called from the serial thread loop.
 {
 	undef $PortObj;
 
-	if ( $osname eq "windows" )
+	if ( $osname eq "MSWin32" )
 	{
 		$PortObj = new Win32::SerialPort ($PortName)
 		       || die "Can't open $PortName: $^E\n";
@@ -842,21 +847,20 @@ sub rs232_flush
 
 sub sendInit
 {
-	logprint ' lock $inhibitReadReport;'."\n" if $debug;
+	dbglogprint ' lock $inhibitReadReport;'."\n";
 	lock $inhibitReadReport;
-	logprint " locked inhibitReadReport\n" if $debug;
+	dbglogprint " locked inhibitReadReport\n";
 	logprint "Sending undocumented init...\n";
 	serialThread("write","0000020100");
 	rs232_flush();
 	logprint "\n";
-	logprint " unlocked inhibitReadReport\n" if $debug;
+	dbglogprint " unlocked inhibitReadReport\n";
 }
 
 sub printStatus
 {
-	my $out = shift;
+	my ($out, $long) = @_;
 	if ( !defined $out ) { logprint "Losing STDOUT timestamp control.\n"; $out = (*STDOUT); }
-	my $long = shift;
 	if ( !defined $long ) { $long = 0; }
 
 	print $out "== === Yamaha ";
@@ -904,19 +908,19 @@ my $dcnfail = 0;
 sub sendReady # getConfiguration
 {
 	{
-		logprint ' lock $inhibitReadReport;'."\n" if $debug;
+		dbglogprint ' lock $inhibitReadReport;'."\n";
 		lock $inhibitReadReport;
-		logprint " locked inhibitReadReport\n" if $debug;
+		dbglogprint " locked inhibitReadReport\n";
 		rs232_flush();
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
-		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
+		dbglogprint ' cond_wait $requireConfiguration;'."\n";
 		cond_wait($requireConfiguration) until $requireConfiguration == 0;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = 1;
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
-		logprint " unlocked inhibitReadReport\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
+		dbglogprint " unlocked inhibitReadReport\n";
 	}
 
 	logprint "Sending Ready command...\n";
@@ -925,33 +929,33 @@ sub sendReady # getConfiguration
 	# Wait for configuration read.
 	my $failed = 0;
 	{
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
-		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
+		dbglogprint ' cond_wait $requireConfiguration;'."\n";
 		cond_wait($requireConfiguration) until $requireConfiguration != 1;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		if ( $requireConfiguration == -1 )
 		{
 			$failed = 1;
 			$requireConfiguration = 0;
 		}
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 	}
 	if ( !$failed )
 	{
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
-		logprint ' cond_wait $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
+		dbglogprint ' cond_wait $requireConfiguration;'."\n";
 		cond_wait($requireConfiguration) until $requireConfiguration != 2;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		if ( $requireConfiguration == -2 )
 		{
 			$failed = 1;
 			$requireConfiguration = 0;
 		}
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 	}
 	if ( $failed )
 	{
@@ -966,7 +970,7 @@ sub sendReady # getConfiguration
 		#logprint "reloading serial interface.\n";
 		#serialThread("setup");
 		logprint "Trying ready command...\n";
-		logprint " unlocked inhibitReadReport\n" if $debug;
+		dbglogprint " unlocked inhibitReadReport\n";
 		return sendReady();
 	}
 	$dcnfail = 0;
@@ -1000,9 +1004,9 @@ sub processReport
 			if ( $expect{$i} eq "$rcmd$rdat" )
 			{
 				$expected = 1;
-				logprint ' lock %expect;'."\n" if $debug;
+				dbglogprint ' lock %expect;'."\n";
 				lock %expect;
-				logprint " locked expect\n" if $debug;
+				dbglogprint " locked expect\n";
 				# Clear unhandled prior expects.
 				foreach my $j ( sort { $a <=> $b } keys %expect )
 				{
@@ -1018,9 +1022,9 @@ sub processReport
 				}
 				logprint "Found expected report, $expect{$i}.\n";
 				delete($expect{$i});
-				logprint ' cond_broadcast %expect;'."\n" if $debug;
+				dbglogprint ' cond_broadcast %expect;'."\n";
 				cond_broadcast(%expect);
-				logprint " unlocked expect\n" if $debug;
+				dbglogprint " unlocked expect\n";
 				last;
 			}
 		}
@@ -1103,9 +1107,9 @@ sub dataToPrint
 
 sub readData
 {
-	logprint ' lock $inhibitReadReport; # Not that we really inhibit ourselves, but it lets us finish.'."\n" if $debug;
+	dbglogprint ' lock $inhibitReadReport; # Not that we really inhibit ourselves, but it lets us finish.'."\n";
 	lock $inhibitReadReport; # Not that we really inhibit ourselves, but it lets us finish.
-	logprint " locked inhibitReadReport\n" if $debug;
+	dbglogprint " locked inhibitReadReport\n";
 
 	my ($count_read, $string_read) = rs232_read(1);
 	if ( ($requireConfiguration==1) && !$count_read )
@@ -1125,22 +1129,22 @@ sub readData
 			}
 			logprint "error: No DC2... ";
 			logprint "DC2 is ".str2hex($DC2)."\n";
-			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' lock $requireConfiguration;'."\n";
 			lock $requireConfiguration;
-			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' locked $requireConfiguration;'."\n";
 			$requireConfiguration = -1;
-			logprint ' cond_signal $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' cond_signal $requireConfiguration;'."\n";
 			cond_signal($requireConfiguration);
-			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' unlocked $requireConfiguration;'."\n";
 			return 1;
 		} else {
-			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' lock $requireConfiguration;'."\n";
 			lock $requireConfiguration;
-			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' locked $requireConfiguration;'."\n";
 			$requireConfiguration = 2;
-			logprint ' cond_signal $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' cond_signal $requireConfiguration;'."\n";
 			cond_signal($requireConfiguration);
-			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' unlocked $requireConfiguration;'."\n";
 		}
 	}
 
@@ -1199,24 +1203,24 @@ sub readConfiguration
 	if ( $count_in < 8 )
 	{
 		logprint "error: Configuration too short. ($count_in of 8 bytes)\n" and exit;
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = -2;
-		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 		cond_broadcast($requireConfiguration);
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 		return $bytes_read;
 	}
 	logprint " Received Configuration...\n";
 	# 5B Model ID
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
- 		$response =~ s/(.....)//;
+		dbglogprint " locked yamaha\n";
+		$response =~ s/(.....)//;
 		$yamaha{'ModelID'} = $1;
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	}
 	logprint "  model ID: ".$yamaha{'ModelID'};
 	if ( $yamaha{'ModelID'} eq "R0161" ) { logprint " (RX-V2400)"; }
@@ -1234,13 +1238,13 @@ sub readConfiguration
 	if ( $dataLength < 9 )
 	{
 		logprint "error: Data length less than minimum.\n";
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = -2;
-		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 		cond_broadcast($requireConfiguration);
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 		return $bytes_read;
 	}
 
@@ -1256,13 +1260,13 @@ sub readConfiguration
 		if ( $ncount_in == 0 )
 		{
 			logprint "error: Couldn't read ready data.\n";
-			logprint ' lock $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' lock $requireConfiguration;'."\n";
 			lock $requireConfiguration;
-			logprint ' locked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' locked $requireConfiguration;'."\n";
 			$requireConfiguration = -2;
-			logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 			cond_broadcast($requireConfiguration);
-			logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+			dbglogprint ' unlocked $requireConfiguration;'."\n";
 			return $bytes_read;
 		}
 	}
@@ -1270,30 +1274,30 @@ sub readConfiguration
 	logprint "Got $count_in bytes, reading Configuration Data...\n";
 	# Data 0 through 6 are "Don't care" per spec
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
+		dbglogprint " locked yamaha\n";
 		$yamaha{'System'} = substr($response,7,1);
 		$yamaha{'Power'} = substr($response,8,1);
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	}
 	if ( defined($Spec{$yamaha{'ModelID'}}{'Configuration'}{'PowerDecode'}{$yamaha{'Power'}}) )
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
+		dbglogprint " locked yamaha\n";
 		eval($Spec{$yamaha{'ModelID'}}{'Configuration'}{'PowerDecode'}{$yamaha{'Power'}});
 					logprint "-$yamaha{'Zone1Power'}-$yamaha{'Zone2Power'}-$yamaha{'Zone3Power'}-\n";
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	} else {
 		logprint "error: Power data is invalid.\n";
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = -2;
-		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 		cond_broadcast($requireConfiguration);
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 		return $bytes_read;
 	}
 
@@ -1303,36 +1307,37 @@ sub readConfiguration
 
 	if ( $yamaha{'System'} eq "0" )
 	{
-		if ( !$yamaha{'Power'} ) {
+		if ( !$yamaha{'Power'} )
+		{
 			if ( $dataLength != 9 )
 			{
 				logprint "error: Data length greater than expected.\n";
-				logprint ' lock $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' lock $requireConfiguration;'."\n";
 				lock $requireConfiguration;
-				logprint ' locked $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' locked $requireConfiguration;'."\n";
 				$requireConfiguration = -2;
-				logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 				cond_broadcast($requireConfiguration);
-				logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' unlocked $requireConfiguration;'."\n";
 				return $bytes_read;
 			}
 		} else {
 			if ( $dataLength != 138 )
 			{
 				logprint "error: Data length not as expected.\n";
-				logprint ' lock $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' lock $requireConfiguration;'."\n";
 				lock $requireConfiguration;
-				logprint ' locked $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' locked $requireConfiguration;'."\n";
 				$requireConfiguration = -2;
-				logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 				cond_broadcast($requireConfiguration);
-				logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+				dbglogprint ' unlocked $requireConfiguration;'."\n";
 				return $bytes_read;
 			}
 
-			logprint ' lock %yamaha;'."\n" if $debug;
+			dbglogprint ' lock %yamaha;'."\n";
 			lock %yamaha;
-			logprint " locked yamaha\n" if $debug;
+			dbglogprint " locked yamaha\n";
 			$yamaha{'Zone1Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,9,1)];
 			$yamaha{'6chInput'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,10,1)];
 			$yamaha{'InputMode'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'InputMode'}[substr($response,11,1)];
@@ -1360,7 +1365,7 @@ sub readConfiguration
 
 			printStatus();
 			writeStatusXML();
-			logprint " unlocked yamaha\n" if $debug;
+			dbglogprint " unlocked yamaha\n";
 		}
 	}
 	logprint "  data: ";
@@ -1387,24 +1392,24 @@ sub readConfiguration
 	else
 	{
 		logprint "error: No ETX\n";
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = -2;
-		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 		cond_broadcast($requireConfiguration);
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 		return $bytes_read;
 	}
 	logprint "\n";
 	{
-		logprint ' lock $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' lock $requireConfiguration;'."\n";
 		lock $requireConfiguration;
-		logprint ' locked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' locked $requireConfiguration;'."\n";
 		$requireConfiguration = 0;
-		logprint ' cond_broadcast $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $requireConfiguration;'."\n";
 		cond_broadcast($requireConfiguration);
-		logprint ' unlocked $requireConfiguration;'."\n" if $debug;
+		dbglogprint ' unlocked $requireConfiguration;'."\n";
 	}
 	return $bytes_read;
 }
@@ -1412,25 +1417,25 @@ sub readConfiguration
 sub stopNetworkServers
 {
 	{
-		logprint ' lock $stopNetworkServers;'."\n" if $debug;
+		dbglogprint ' lock $stopNetworkServers;'."\n";
 		lock $stopNetworkServers;
-		logprint " locked stopNetworkServers\n" if $debug;
+		dbglogprint " locked stopNetworkServers\n";
 		$stopNetworkServers = 1;
-		logprint " unlocked stopNetworkServers\n" if $debug;
+		dbglogprint " unlocked stopNetworkServers\n";
 	}
 
 	while ( 1 )
 	{
 		{
-			logprint ' lock $runningNetworkServers;'."\n" if $debug;
+			dbglogprint ' lock $runningNetworkServers;'."\n";
 			lock $runningNetworkServers;
-			logprint " locked runningNetworkServers\n" if $debug;
+			dbglogprint " locked runningNetworkServers\n";
 			if ( !$runningNetworkServers )
 			{
-				logprint " unlocked runningNetworkServers\n" if $debug;
+				dbglogprint " unlocked runningNetworkServers\n";
 				return;
 			}
-			logprint " unlocked runningNetworkServers\n" if $debug;
+			dbglogprint " unlocked runningNetworkServers\n";
 		}
 
 		IO::Socket::INET->new("localhost:$PORT");
@@ -1526,17 +1531,17 @@ sub sendControl # getReport
 			{
 				if ( "val" eq $source->{'Eval'} )
 				{
-					logprint ' lock %yamaha;'."\n" if $debug;
+					dbglogprint ' lock %yamaha;'."\n";
 					lock %yamaha;
-					logprint " locked yamaha\n" if $debug;
+					dbglogprint " locked yamaha\n";
 					$packet = $packet.eval($source->{$car}).$packetTail;
-					logprint " unlocked yamaha\n" if $debug;
+					dbglogprint " unlocked yamaha\n";
 				} else {
-					logprint ' lock %yamaha;'."\n" if $debug;
+					dbglogprint ' lock %yamaha;'."\n";
 					lock %yamaha;
-					logprint " locked yamaha\n" if $debug;
+					dbglogprint " locked yamaha\n";
 					$packet = $packet.eval($source->{'Eval'}).$packetTail;
-					logprint " unlocked yamaha\n" if $debug;
+					dbglogprint " unlocked yamaha\n";
 				}
 			} else {
 				$packet = $packet.$source->{$car}.$packetTail;
@@ -1596,14 +1601,14 @@ sub sendControl # getReport
 	if ( defined($expectReport) )
 	{
 		logprint "expect $expectReport";
-		logprint ' lock %expect;'."\n" if $debug;
+		dbglogprint ' lock %expect;'."\n";
 		lock %expect;
-		logprint " locked expect\n" if $debug;
+		dbglogprint " locked expect\n";
 		$expect{$nextExpectUID} = $expectReport;
 		$expectStimulus{$nextExpectUID} = $packet;
 		$myExpect = $nextExpectUID;
 		$nextExpectUID++;
-		logprint " unlocked expect\n" if $debug;
+		dbglogprint " unlocked expect\n";
 	}
 
 	logprint "Sending Control $inStr...\n";
@@ -1616,26 +1621,26 @@ sub sendControl # getReport
 		logprint "Waiting for expect...\n";
 		{
 			logprint "expect $expectReport\n";
-			logprint ' lock %expect;'."\n" if $debug;
+			dbglogprint ' lock %expect;'."\n";
 			lock %expect;
-			logprint " locked expect\n" if $debug;
-			logprint " cond_wait expect\n" if $debug;
+			dbglogprint " locked expect\n";
+			dbglogprint " cond_wait expect\n";
 			while (defined($expect{$myExpect}))
 			{
 				cond_timedwait(%expect,time+1);
 				if ($needSendReady && defined($expect{$myExpect}))
 				{
-					logprint ' lock $needSendReady;'."\n" if $debug;
+					dbglogprint ' lock $needSendReady;'."\n";
 					lock $needSendReady;
-					logprint ' locked $needSendReady;'."\n" if $debug;
+					dbglogprint ' locked $needSendReady;'."\n";
 					sendReady();
 					$needSendReady = 0;
-					logprint ' cond_broadcast $needSendReady;'."\n" if $debug;
+					dbglogprint ' cond_broadcast $needSendReady;'."\n";
 					cond_broadcast($needSendReady);
-					logprint ' unlocked $needSendReady;'."\n" if $debug;
+					dbglogprint ' unlocked $needSendReady;'."\n";
 				}
 			}
-			logprint " locked expect\n" if $debug;
+			dbglogprint " locked expect\n";
 		}
 		logprint "Done waiting.\n";
 	}
@@ -1651,40 +1656,40 @@ sub sendControlToServer
 	my $id;
 
 	{
-		logprint ' lock $nextioUID;'."\n" if $debug;
+		dbglogprint ' lock $nextioUID;'."\n";
 		lock $nextioUID;
-		logprint " locked nextioUID\n" if $debug;
+		dbglogprint " locked nextioUID\n";
 		$id = $nextioUID;
 		$nextioUID++;
-		logprint " unlocked nextioUID\n" if $debug;
+		dbglogprint " unlocked nextioUID\n";
 	}
 	{
-		logprint ' lock %output;'."\n" if $debug;
+		dbglogprint ' lock %output;'."\n";
 		lock %output;
-		logprint " locked output\n" if $debug;
+		dbglogprint " locked output\n";
 		undef $output{$id};
-		logprint " unlocked output\n" if $debug;
+		dbglogprint " unlocked output\n";
 	}
 
 	{
-		logprint ' lock %input;'."\n" if $debug;
+		dbglogprint ' lock %input;'."\n";
 		lock %input;
-		logprint " locked input\n" if $debug;
+		dbglogprint " locked input\n";
 		$input{$id} = $inStr;
 		cond_signal(%input);
-		logprint " cond_signal input\n" if $debug;
-		logprint " unlocked input\n" if $debug;
+		dbglogprint " cond_signal input\n";
+		dbglogprint " unlocked input\n";
 	}
 
 	{
-		logprint ' lock %output;'."\n" if $debug;
+		dbglogprint ' lock %output;'."\n";
 		lock %output;
-		logprint " locked output\n" if $debug;
-		logprint " unlocked output\n" if $debug;
-		logprint " cond_wait output\n" if $debug;
+		dbglogprint " locked output\n";
+		dbglogprint " unlocked output\n";
+		dbglogprint " cond_wait output\n";
 		cond_wait(%output) until defined($output{$id});
-		logprint " locked output\n" if $debug;
-		logprint " unlocked output\n" if $debug;
+		dbglogprint " locked output\n";
+		dbglogprint " unlocked output\n";
 		return $output{$id};
 	}
 }
@@ -1735,8 +1740,7 @@ sub writeStatusXML
 }
 
 my $macroDirectory = "";
-if ( -e "$ENV{'HOME'}/.rxv2400_rxm" ||
-    ($starnix && -e "/etc/rxv2400_rxm") )
+if ( -e "$ENV{'HOME'}/.rxv2400_rxm" || ($starnix && -e "/etc/rxv2400_rxm") )
 {
 	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
 	{
@@ -1771,15 +1775,15 @@ sub writeMacroFile
 	}
 
 	if (open(MYFILE, ">$inFile")) {
-		logprint ' lock %MacroLibrary;'."\n" if $debug;
+		dbglogprint ' lock %MacroLibrary;'."\n";
 		lock %MacroLibrary;
-		logprint " locked MacroLibrary\n" if $debug;
+		dbglogprint " locked MacroLibrary\n";
 		for my $key ( keys %MacroLibrary )
 		{
 			print MYFILE "macro $key\n$MacroLibrary{$key}end\n\n";
 		}
 		close(MYFILE);
-		logprint " unlocked MacroLibrary\n" if $debug;
+		dbglogprint " unlocked MacroLibrary\n";
 	}
 }
 
@@ -1804,9 +1808,9 @@ sub readMacroFile
 
 			if ( /^macro\s+(\S+)/i ) {
 				my $macroName = $1;
-				logprint ' lock %MacroLibrary;'."\n" if $debug;
+				dbglogprint ' lock %MacroLibrary;'."\n";
 				lock %MacroLibrary;
-				logprint " locked MacroLibrary\n" if $debug;
+				dbglogprint " locked MacroLibrary\n";
 				logprint "reading macro '$macroName'\n";
 				$MacroLibrary{$macroName} = "";
 
@@ -1821,7 +1825,7 @@ sub readMacroFile
 					s/^\s*//;
 					$MacroLibrary{$macroName} .= $_."\n";
 				}
-				logprint " unlocked MacroLibrary\n" if $debug;
+				dbglogprint " unlocked MacroLibrary\n";
 			}
 		}
 		close(MYFILE);
@@ -1850,25 +1854,21 @@ sub decode
 	{
 		if ( $forwardReceiver ne "" )
 		{
-			my $telnet = new Net::Telnet('Host'=>$forwardReceiver,
-			                             'Port'=>$forwardReceiverPort);
+			my $telnet = new Net::Telnet('Host'=>$forwardReceiver, 'Port'=>$forwardReceiverPort);
 			my $output = $telnet->get(); # Clear out the welcome text.
 			$telnet->put("$_\nbye\n");
 			$output = $telnet->get();
 			print $client $output;
-
 			$telnet->close();
 		}
 	} else {
 		if ( $forwardOther ne "" )
 		{
-			my $telnet = new Net::Telnet('Host'=>$forwardOther,
-			                             'Port'=>$forwardOtherPort);
+			my $telnet = new Net::Telnet('Host'=>$forwardOther, 'Port'=>$forwardOtherPort);
 			my $output = $telnet->get(); # Clear out the welcome text.
 			$telnet->put("$_\nbye\n");
 			$output = $telnet->get();
 			print $client $output;
-
 			$telnet->close();
 		}
 	}
@@ -1895,7 +1895,7 @@ sub decode
 		system qq~osascript -e $_~;
 	} elsif ( /^play/i ) {
 		s/play\s*//;
-		if ( $osname eq 'windows' )
+		if ( $osname eq 'MSWin32' )
 		{
 			# Fork since this will never close on it's own.
 			# This will interrupt current audio.
@@ -2003,11 +2003,11 @@ sub decode
 	} elsif ( /^macro\s+(\S+)/i && defined($client) ) {
 		my $macroName = $1;
 		{
-			logprint ' lock %MacroLibrary;'."\n" if $debug;
+			dbglogprint ' lock %MacroLibrary;'."\n";
 			lock %MacroLibrary;
-			logprint " locked MacroLibrary\n" if $debug;
+			dbglogprint " locked MacroLibrary\n";
 			$MacroLibrary{$macroName} = "";
-			logprint " unlocked MacroLibrary\n" if $debug;
+			dbglogprint " unlocked MacroLibrary\n";
 		}
 
 		print $client "Recording macro '$macroName'...\n";
@@ -2022,11 +2022,11 @@ sub decode
 			s/\r//;
 			s/^\s*//;
 			{
-				logprint ' lock %MacroLibrary;'."\n" if $debug;
+				dbglogprint ' lock %MacroLibrary;'."\n";
 				lock %MacroLibrary;
-				logprint " locked MacroLibrary\n" if $debug;
+				dbglogprint " locked MacroLibrary\n";
 				$MacroLibrary{$macroName} .= $_."\n";
-				logprint " unlocked MacroLibrary\n" if $debug;
+				dbglogprint " unlocked MacroLibrary\n";
 			}
 		}
 
@@ -2037,9 +2037,9 @@ sub decode
 		my $macroName = $1;
 		my $macro = "";
 		{
-			logprint ' lock %MacroLibrary;'."\n" if $debug;
+			dbglogprint ' lock %MacroLibrary;'."\n";
 			lock %MacroLibrary;
-			logprint " locked MacroLibrary\n" if $debug;
+			dbglogprint " locked MacroLibrary\n";
 			if ( !defined($MacroLibrary{$macroName}) ) {
 				if ( defined($client) )
 				{
@@ -2048,7 +2048,7 @@ sub decode
 				return 0;
 			}
 			$macro = $MacroLibrary{$macroName};
-			logprint " unlocked MacroLibrary\n" if $debug;
+			dbglogprint " unlocked MacroLibrary\n";
 		}
 		logprint "running macro '$macro'\n";
 		while ( $macro =~ s/(.+?)\n// )
@@ -2061,19 +2061,19 @@ sub decode
 			print $client "Macro '$macroName' completed.\n";
 		}
 	} elsif ( /^write\s+(\S+)/i ) {
-		logprint ' lock %MacroLibrary;'."\n" if $debug;
+		dbglogprint ' lock %MacroLibrary;'."\n";
 		lock %MacroLibrary;
-		logprint " locked MacroLibrary\n" if $debug;
+		dbglogprint " locked MacroLibrary\n";
 		writeMacroFile($1);
-		logprint " unlocked MacroLibrary\n" if $debug;
+		dbglogprint " unlocked MacroLibrary\n";
 	} elsif ( /^read\s+(\S+)/i ) {
 		readMacroFile($1);
 	} elsif ( /^clear\s+(\S+)/i ) {
-		logprint ' lock %MacroLibrary;'."\n" if $debug;
+		dbglogprint ' lock %MacroLibrary;'."\n";
 		lock %MacroLibrary;
-		logprint " locked MacroLibrary\n" if $debug;
+		dbglogprint " locked MacroLibrary\n";
 		%MacroLibrary = ();
-		logprint " unlocked MacroLibrary\n" if $debug;
+		dbglogprint " unlocked MacroLibrary\n";
 	} elsif ( s/^(at\s+.*?)\sdo\s+//i ) {
 		my $dotime = $1;
 		addScheduled($dotime,$_,$client);
@@ -2101,20 +2101,20 @@ sub decode
 		{
 			my $id;
 			{
-				logprint ' lock $nextioUID;'."\n" if $debug;
+				dbglogprint ' lock $nextioUID;'."\n";
 				lock $nextioUID;
-				logprint " locked nextioUID\n" if $debug;
+				dbglogprint " locked nextioUID\n";
 				$id = $nextioUID;
 				$nextioUID++;
-				logprint " unlocked nextioUID\n" if $debug;
+				dbglogprint " unlocked nextioUID\n";
 			}
-			logprint ' lock %input;'."\n" if $debug;
+			dbglogprint ' lock %input;'."\n";
 			lock %input;
-			logprint " locked input\n" if $debug;
+			dbglogprint " locked input\n";
 			$input{$id} = "reload";
 			cond_signal(%input);
-			logprint " cond_signal input\n" if $debug;
-			logprint " unlocked input\n" if $debug;
+			dbglogprint " cond_signal input\n";
+			dbglogprint " unlocked input\n";
 		}
 		exit;
 	} elsif ( /^shutdown/i ) {
@@ -2124,20 +2124,20 @@ sub decode
 		{
 			my $id;
 			{
-				logprint ' lock $nextioUID;'."\n" if $debug;
+				dbglogprint ' lock $nextioUID;'."\n";
 				lock $nextioUID;
-				logprint " locked nextioUID\n" if $debug;
+				dbglogprint " locked nextioUID\n";
 				$id = $nextioUID;
 				$nextioUID++;
-				logprint " unlocked nextioUID\n" if $debug;
+				dbglogprint " unlocked nextioUID\n";
 			}
-			logprint ' lock %input;'."\n" if $debug;
+			dbglogprint ' lock %input;'."\n";
 			lock %input;
-			logprint " locked input\n" if $debug;
+			dbglogprint " locked input\n";
 			$input{$id} = "shutdown";
 			cond_signal(%input);
-			logprint " cond_signal input\n" if $debug;
-			logprint " unlocked input\n" if $debug;
+			dbglogprint " cond_signal input\n";
+			dbglogprint " unlocked input\n";
 		}
 		exit;
 	} elsif ( /^help/i && defined($client) ) {
@@ -2266,19 +2266,19 @@ if ( $forwardReceiver eq "" )
 						threads->detach();
 						my $letItBeMe = 0;
 						{
-							logprint ' lock $needSendReady;'."\n" if $debug;
+							dbglogprint ' lock $needSendReady;'."\n";
 							lock $needSendReady;
-							logprint ' locked $needSendReady;'."\n" if $debug;
+							dbglogprint ' locked $needSendReady;'."\n";
 							if ( ! $needSendReady )
 							{
 								$letItBeMe = 1;
 								$needSendReady = 1;
-								logprint ' unlocked $needSendReady;'."\n" if $debug;
-								logprint ' cond_wait $needSendReady;'."\n" if $debug;
+								dbglogprint ' unlocked $needSendReady;'."\n";
+								dbglogprint ' cond_wait $needSendReady;'."\n";
 								cond_wait($needSendReady) until $needSendReady == 0;
-								logprint ' locked $needSendReady;'."\n" if $debug;
+								dbglogprint ' locked $needSendReady;'."\n";
 							}
-							logprint ' unlocked $needSendReady;'."\n" if $debug;
+							dbglogprint ' unlocked $needSendReady;'."\n";
 						}
 						# Resend unfulfilled commands.
 						if ( $letItBeMe )
@@ -2313,10 +2313,6 @@ sub serviceClient
 {
 	my $id = shift;
 	my $client = shift;
-#	{
-#		lock
-#		close $client;
-#		return;
 
 	# Welcome message
 	print $client "RX-V2400 Server $version connection open.\n";
@@ -2334,7 +2330,6 @@ sub serviceClient
 		if ( defined($_ = <$client>) )
 		{
 			next unless /\S/;       # blank line check
-	
 			s/\n//;
 			s/\r//;
 			s/^\s*//;
@@ -2367,26 +2362,26 @@ sub newScheduleSleeper
 			# connection.
 			close $client;
 		}
-		logprint ' { lock $activeScheduleSleeper; $activeScheduleSleeper++; $num = $activeScheduleSleeper; }'."\n" if $debug;
+		dbglogprint ' { lock $activeScheduleSleeper; $activeScheduleSleeper++; $num = $activeScheduleSleeper; }'."\n";
 		{ lock $activeScheduleSleeper; $activeScheduleSleeper++; $num = $activeScheduleSleeper; }
-		logprint " unlocked\n" if $debug;
+		dbglogprint " unlocked\n";
 		if ( $seconds > 0 ) { sleep ($seconds); }
 		{
-			logprint ' lock $activeScheduleSleeper;'."\n" if $debug;
+			dbglogprint ' lock $activeScheduleSleeper;'."\n";
 			lock $activeScheduleSleeper;
-			logprint " locked activeScheduleSleeper\n" if $debug;
+			dbglogprint " locked activeScheduleSleeper\n";
 			if ( $num == $activeScheduleSleeper )
 			{
 				$num = 1;
-				logprint ' lock $nextRun;'."\n" if $debug;
+				dbglogprint ' lock $nextRun;'."\n";
 				lock $nextRun;
-				logprint " locked nextRun\n" if $debug;
+				dbglogprint " locked nextRun\n";
 				$nextRun = -1;
-				logprint " unlocked nextRun\n" if $debug;
+				dbglogprint " unlocked nextRun\n";
 			} else {
 				$num = 0;
 			}
-			logprint " unlocked activeScheduleSleeper\n" if $debug;
+			dbglogprint " unlocked activeScheduleSleeper\n";
 		}
 		if ( $num )
 		{
@@ -2397,9 +2392,9 @@ sub newScheduleSleeper
 
 sub runSchedule
 {
-	logprint ' lock %schedule;'."\n" if $debug;
+	dbglogprint ' lock %schedule;'."\n";
 	lock %schedule;
-	logprint " locked schedule\n" if $debug;
+	dbglogprint " locked schedule\n";
 	my $nextTime = -1;
 	foreach my $id ( keys %schedule )
 	{
@@ -2431,17 +2426,17 @@ sub runSchedule
 		}
 	}
 	{
-		logprint ' lock $nextRun;'."\n" if $debug;
+		dbglogprint ' lock $nextRun;'."\n";
 		lock $nextRun;
-		logprint " locked nextRun\n" if $debug;
+		dbglogprint " locked nextRun\n";
 		if ( (-1 != $nextTime) && ((-1 == $nextRun) || ($nextRun > $nextTime)) )
 		{
 				$nextRun = $nextTime;
 				newScheduleSleeper($nextRun-time);
 		}
-		logprint " unlocked nextRun\n" if $debug;
+		dbglogprint " unlocked nextRun\n";
 	}
-	logprint " unlocked schedule\n" if $debug;
+	dbglogprint " unlocked schedule\n";
 }
 
 sub printSchedule
@@ -2450,7 +2445,7 @@ sub printSchedule
 	foreach my $id ( sort { $a <=> $b } keys %schedule )
 	{
 		print $client "$id.\t$schedule{$id}{'command'}\n"
-		                  . "\tNext run: ".localtime($schedule{$id}{'nextRun'})."\n";
+		              . "\tNext run: ".localtime($schedule{$id}{'nextRun'})."\n";
 		if ( defined($schedule{$id}{'desc'}) )
 		{
 			print $client "\t$schedule{$id}{'desc'}\n";
@@ -2532,12 +2527,12 @@ sub addScheduled
 	print $client "$repeat\n";
 
 	{
-		logprint ' lock %schedule;'."\n" if $debug;
+		dbglogprint ' lock %schedule;'."\n";
 		lock %schedule;
-		logprint " locked schedule\n" if $debug;
-		logprint ' lock $nextScheduleIndex;'."\n" if $debug;
+		dbglogprint " locked schedule\n";
+		dbglogprint ' lock $nextScheduleIndex;'."\n";
 		lock $nextScheduleIndex;
-		logprint " locked nextScheduleIndex\n" if $debug;
+		dbglogprint " locked nextScheduleIndex\n";
 		my $myindex = $nextScheduleIndex;
 		share($schedule{$myindex});
 		$schedule{$myindex} = &share( {} );
@@ -2547,19 +2542,19 @@ sub addScheduled
 		$schedule{$myindex}{'command'} = $command;
 		$schedule{$myindex}{'desc'} = $desc;
 		$nextScheduleIndex++;
-		logprint " unlocked schedule\n" if $debug;
-		logprint " unlocked nextScheduleIndex\n" if $debug;
+		dbglogprint " unlocked schedule\n";
+		dbglogprint " unlocked nextScheduleIndex\n";
 	}
 	{
-		logprint ' lock $nextRun;'."\n" if $debug;
+		dbglogprint ' lock $nextRun;'."\n";
 		lock $nextRun;
-		logprint " locked nextRun\n" if $debug;
+		dbglogprint " locked nextRun\n";
 		if ( (-1 == $nextRun) || ($nextRun > $timeToRun) )
 		{
 			$nextRun = $timeToRun;
 			newScheduleSleeper($nextRun-time,$client);
 		}
-		logprint " unlocked nextRun\n" if $debug;
+		dbglogprint " unlocked nextRun\n";
 	}
 }
 
@@ -2571,15 +2566,15 @@ sub serviceScheduled
 	my $command = $schedule{$id}{'command'};
 	if ((!decode($command,$client)) || $delete)
 	{
-		logprint ' lock %schedule;'."\n" if $debug;
+		dbglogprint ' lock %schedule;'."\n";
 		lock %schedule;
-		logprint " locked schedule\n" if $debug;
+		dbglogprint " locked schedule\n";
 		# Just in case there's a race on delete...
 		if ( defined($schedule{$id}) )
 		{
 			delete($schedule{$id});
 		}
-		logprint " unlocked schedule\n" if $debug;
+		dbglogprint " unlocked schedule\n";
 	}
 }
 
@@ -2606,12 +2601,12 @@ sub startNetworkServer
 
 	die "sorry, couldn't setup server" unless $server;
 	{
-		logprint ' lock $runningNetworkServers;'."\n" if $debug;
+		dbglogprint ' lock $runningNetworkServers;'."\n";
 		lock $runningNetworkServers;
-		logprint " locked runningNetworkServers\n" if $debug;
+		dbglogprint " locked runningNetworkServers\n";
 		$runningNetworkServers++;
 		print "[RXV-Server $version ($runningNetworkServers) waiting for commands on port $PORT]\n";
-		logprint " unlocked runningNetworkServers\n" if $debug;
+		dbglogprint " unlocked runningNetworkServers\n";
 	}
 
 	while ( !$server->error() ) # Returns -1 when socket is closed.
@@ -2619,24 +2614,24 @@ sub startNetworkServer
 		if ( my $client = $server->accept() )
 		{
 			$client->autoflush(1);
-			logprint ' lock $stopNetworkServers;'."\n" if $debug;
+			dbglogprint ' lock $stopNetworkServers;'."\n";
 			lock $stopNetworkServers;
-			logprint " locked stopNetworkServers\n" if $debug;
+			dbglogprint " locked stopNetworkServers\n";
 			if ( $stopNetworkServers )
 			{
 				close $client;
 				close $server;
-				logprint ' lock $runningNetworkServers;'."\n" if $debug;
+				dbglogprint ' lock $runningNetworkServers;'."\n";
 				lock $runningNetworkServers;
-				logprint " locked runningNetworkServers\n" if $debug;
+				dbglogprint " locked runningNetworkServers\n";
 				$runningNetworkServers--;
-				logprint " unlocked runningNetworkServers\n" if $debug;
+				dbglogprint " unlocked runningNetworkServers\n";
 			} else {
 				my $child = threads->new(\&serviceClient,1, $client);
 				close $client;
 				$child->detach();
 			}
-			logprint " unlocked stopNetworkServers\n" if $debug;
+			dbglogprint " unlocked stopNetworkServers\n";
 		}
 	}
 }
@@ -2659,33 +2654,31 @@ while ( $numServersToRun )
 	$child->detach();
 }
 
-	#serialThread("write",$STX."07AED".$ETX.$STX."07EBA".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX.$STX."07A1B".$ETX);
-
 for (;;) # forever
 {
-	logprint 'check $needSendReady;'."\n" if $debug;
+	dbglogprint 'check $needSendReady;'."\n";
 	if ( $needSendReady )
 	{
-		logprint ' lock $needSendReady;'."\n" if $debug;
+		dbglogprint ' lock $needSendReady;'."\n";
 		lock $needSendReady;
-		logprint ' locked $needSendReady;'."\n" if $debug;
+		dbglogprint ' locked $needSendReady;'."\n";
 		sendReady();
 		$needSendReady = 0;
-		logprint ' cond_broadcast $needSendReady;'."\n" if $debug;
+		dbglogprint ' cond_broadcast $needSendReady;'."\n";
 		cond_broadcast($needSendReady);
-		logprint ' unlocked $needSendReady;'."\n" if $debug;
+		dbglogprint ' unlocked $needSendReady;'."\n";
 	}
 
 	{
-		logprint ' lock %input;'."\n" if $debug;
+		dbglogprint ' lock %input;'."\n";
 		lock %input;
-		logprint " locked input\n" if $debug;
+		dbglogprint " locked input\n";
 
-		logprint " unlocked input\n" if $debug;
-		logprint " cond_wait input\n" if $debug;
+		dbglogprint " unlocked input\n";
+		dbglogprint " cond_wait input\n";
 		cond_wait(%input) until int(keys %input);
-		logprint " locked input\n" if $debug;
-		logprint " unlocked input\n" if $debug;
+		dbglogprint " locked input\n";
+		dbglogprint " unlocked input\n";
 	}
 
 	for my $id ( keys %input )
@@ -2694,20 +2687,20 @@ for (;;) # forever
 		{
 			my $result = sendControl($input{$id});
 			{
-				logprint ' lock %input;'."\n" if $debug;
+				dbglogprint ' lock %input;'."\n";
 				lock %input;
-				logprint " locked input\n" if $debug;
+				dbglogprint " locked input\n";
 				undef($input{$id});
 				delete($input{$id});
-				logprint " unlocked input\n" if $debug;
+				dbglogprint " unlocked input\n";
 			}
 			{
-				logprint ' lock %output;'."\n" if $debug;
+				dbglogprint ' lock %output;'."\n";
 				lock %output;
-				logprint " locked output\n" if $debug;
+				dbglogprint " locked output\n";
 				$output{$id} = $result;
 				cond_broadcast(%output);
-				logprint " unlocked output\n" if $debug;
+				dbglogprint " unlocked output\n";
 			}
 		}
 	}
@@ -2722,11 +2715,11 @@ sub setZ1Power
 	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
 	if ( $yamaha{'Zone1Power'} eq $val ) { return ""; }
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
+		dbglogprint " locked yamaha\n";
 		$yamaha{'Zone1Power'} = $val;
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	}
 	my $msg = "Zone1Power turned $val.\n";
 	if ( "ON" eq $val )
@@ -2743,11 +2736,11 @@ sub setZ2Power
 	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
 	if ( $yamaha{'Zone2Power'} eq $val ) { return ""; }
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
+		dbglogprint " locked yamaha\n";
 		$yamaha{'Zone2Power'} = $val;
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	}
 	my $msg = "Zone2Power turned $val.\n";
 	if ( "ON" eq $val )
@@ -2764,11 +2757,11 @@ sub setZ3Power
 	my $val = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[$inVal];
 	if ( $yamaha{'Zone3Power'} eq $val ) { return ""; }
 	{
-		logprint ' lock %yamaha;'."\n" if $debug;
+		dbglogprint ' lock %yamaha;'."\n";
 		lock %yamaha;
-		logprint " locked yamaha\n" if $debug;
+		dbglogprint " locked yamaha\n";
 		$yamaha{'Zone3Power'} = $val;
-		logprint " unlocked yamaha\n" if $debug;
+		dbglogprint " unlocked yamaha\n";
 	}
 	my $msg = "Zone3Power turned $val.\n";
 	if ( "ON" eq $val )
@@ -2827,3 +2820,4 @@ sub hex2str
 	$l =~ s/([0-9a-f]{1,2})\s*/sprintf("%c",hex($1))/egi;
 	return $l;
 }
+
