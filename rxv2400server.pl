@@ -278,6 +278,9 @@ my $DC2 = hex2str("12");
 my $DC3 = hex2str("13");
 my $DC4 = hex2str("14");
 
+my %settings;
+$settings{"DVD"}{'AudioDelay'} = 130;
+
 my %Spec = (
 	"R0161" => {
 		"Configuration" => {
@@ -428,6 +431,29 @@ my %Spec = (
 				                                            itoa(\$yamaha{'Zone3Volume'});"},
 				                   "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
 				                                         itoa(\$yamaha{'Zone3Volume'});"}
+				},
+				#...,
+				# Spec says AudioDelay is 52, but RX-V2400 actually accepts this command and sends report on 53.
+				"AudioDelay" => { "Prefix" => "53" ,
+				                  "Eval" => "val" ,
+				                  "Up" => "\$yamaha{'AudioDelay'}++;
+				                           \$yamaha{'AudioDelay'}
+				                           = boundval(\$yamaha{'AudioDelay'},0,240);
+				                           itoa(\$yamaha{'AudioDelay'},2);" ,
+				                  "Down" => "\$yamaha{'AudioDelay'}--;
+				                             \$yamaha{'AudioDelay'}
+				                              = boundval(\$yamaha{'AudioDelay'},
+				                                         0,
+				                                         240);
+				                             itoa(\$yamaha{'AudioDelay'},2);",
+				                  "Adjust" => { "Eval" => "\$yamaha{'AudioDelay'}+=\$car;
+				                                           \$yamaha{'AudioDelay'}
+				                                            = boundval(\$yamaha{'AudioDelay'},
+				                                                       0,
+				                                                       240);
+				                                           itoa(\$yamaha{'AudioDelay'},2);"},
+				                  "Set" => { "Eval" => "\$yamaha{'AudioDelay'}=\$car;
+				                                        itoa(\$yamaha{'AudioDelay'},2);"}
 				}
 			}
 		},
@@ -616,7 +642,11 @@ my %Spec = (
 				"Name" => "Zone1Input",
 				"Eval" => "\$yamaha{'6chInput'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[atoi(substr(\$rdat,0,1))];
 				           \$yamaha{'Zone1Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(substr(\$rdat,1,1))];
-				           onscreenInfo('Input',\$yamaha{'Zone1Input'});"
+				           onscreenInfo('Input',\$yamaha{'Zone1Input'});
+				           if ( defined(\$settings{\$yamaha{'Zone1Input'}}{'AudioDelay'}) ) {
+				               decode('Control Operation AudioDelay Set '.
+				                      \$settings{\$yamaha{'Zone1Input'}}{'AudioDelay'},
+				                      (*STDOUT) ); }"
 			},
 #			"22" => { },
 			"23" => {
@@ -635,6 +665,12 @@ my %Spec = (
 				"Name" => "Master Volume",
 				"Eval" => "\$yamaha{'Zone1Volume'} = atoi(\$rdat);
 				           onscreenInfo('Volume',((\$yamaha{'Zone1Volume'}-199)/2).' dB');"
+			},
+			# ...,
+			"53" => {
+				"Name" => "Audio Delay",
+				"Eval" => "\$yamaha{'AudioDelay'} = atoi(\$rdat);
+				           print('Audio Delay: '.\$yamaha{'AudioDelay'}.' ms\n');"
 			}
 		}
 	}
@@ -1338,11 +1374,11 @@ sub readConfiguration
 			dbglogprint ' lock %yamaha;'."\n";
 			lock %yamaha;
 			dbglogprint " locked yamaha\n";
-			$yamaha{'Zone1Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,9,1)];
+			$yamaha{'Zone1Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[hex(substr($response,9,1))];
 			$yamaha{'6chInput'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,10,1)];
 			$yamaha{'InputMode'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'InputMode'}[substr($response,11,1)];
 			$yamaha{'Zone1Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,12,1)];
-			$yamaha{'Zone2Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,13,1)];
+			$yamaha{'Zone2Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[hex(substr($response,13,1))];
 			$yamaha{'Zone2Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,14,1)];
 			# Volume is numeric.  Higher = Louder.  0.5db increment.
 			$yamaha{'Zone1Volume'} = atoi(substr($response,15,2));
@@ -1359,7 +1395,9 @@ sub readConfiguration
 			$yamaha{'SpeakerA'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,29,1)];
 			$yamaha{'SpeakerB'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,30,1)];
 			# ...
-			$yamaha{'Zone3Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[substr($response,127,1)];
+			$yamaha{'AudioDelay'} = atoi(substr($response,78,2));
+			# ...
+			$yamaha{'Zone3Input'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'Input'}[hex(substr($response,127,1))];
 			$yamaha{'Zone3Mute'} = $Spec{$yamaha{'ModelID'}}{'Configuration'}{'OffOn'}[substr($response,128,1)];
 			$yamaha{'Zone3Volume'} = atoi(substr($response,129,2));
 
@@ -1739,30 +1777,41 @@ sub writeStatusXML
 	}
 }
 
-my $macroDirectory = "";
-if ( -e "$ENV{'HOME'}/.rxv2400_rxm" || ($starnix && -e "/etc/rxv2400_rxm") )
+my %directories = ();
+$directories{'macros'} = "";
+$directories{'settings'} = "";
+
+sub initDirectory
 {
-	if ( ! -e "$ENV{'HOME'}/.rxv2400" )
+	my $dirname = shift;
+	if ( -e "$ENV{'HOME'}/.rxv2400_rxm" || ($starnix && -e "/etc/rxv2400_rxm") )
 	{
-		mkdir("$ENV{'HOME'}/.rxv2400");
-	} elsif ( ! -d "$ENV{'HOME'}/.rxv2400" ) {
-		logprint "error: ~/.rxv2400 not a macroDirectory.\n" and die;
-	}
-	$macroDirectory = "$ENV{'HOME'}/.rxv2400";
-} else {
-	$macroDirectory = "macro";
-	if ( ! -e "macro" )
-	{
-		mkdir("macro");
-		if ( ! -d "macro" )
+		if ( ! -e "$ENV{'HOME'}/.rxv2400/$dirname" )
 		{
-			logprint "warning: 'macro' macroDirectory could not be created.  Attempts to add or save macros may fail.\n";
+			mkdir("$ENV{'HOME'}/.rxv2400");
+			mkdir("$ENV{'HOME'}/.rxv2400/$dirname");
+		} elsif ( ! -d "$ENV{'HOME'}/.rxv2400/$dirname" ) {
+			logprint "error: ~/.rxv2400/$dirname not a $dirname directory.\n" and die;
 		}
-	} elsif ( ! -d "macro" ) {
-		$macroDirectory = ".";
+		$directories{$dirname} = "$ENV{'HOME'}/.rxv2400/$dirname";
+	} else {
+		$directories{$dirname} = "rxv2400data/$dirname";
+		if ( ! -e $directories{$dirname} )
+		{
+			mkdir("rxv2400data");
+			mkdir($directories{$dirname});
+			if ( ! -d $directories{$dirname} )
+			{
+				logprint "warning: '$directories{$dirname}' $dirname directory could not be created.  Attempts to add or save $dirname may fail.\n";
+			}
+		} elsif ( ! -d $directories{$dirname} ) {
+			$directories{$dirname} = ".";
+		}
 	}
 }
 
+initDirectory("macros");
+initDirectory("settings");
 %MacroLibrary = ();
 
 sub writeMacroFile
@@ -1771,7 +1820,7 @@ sub writeMacroFile
 
 	if ( !($inFile =~ m/rxm$/) )
 	{
-		$inFile = "$macroDirectory/$inFile.rxm";
+		$inFile = "$directories{'macro'}/$inFile.rxm";
 	}
 
 	if (open(MYFILE, ">$inFile")) {
@@ -1793,7 +1842,7 @@ sub readMacroFile
 
 	if ( !($inFile =~ m/rxm$/) )
 	{
-		$inFile = "$macroDirectory/$inFile.rxm";
+		$inFile = "$directories{'macro'}/$inFile.rxm";
 	}
 
 	if (open(MYFILE, "$inFile")) {
@@ -2079,6 +2128,14 @@ sub decode
 		addScheduled($dotime,$_,$client);
 	} elsif ( /^schedule/i && defined($client) ) {
 		printSchedule($client);
+	} elsif ( s/^settings\s+//i ) {
+		if ( s/^store\s+//i )
+		{
+			if ( s/^default audio delay for input$//i )
+			{
+				$settings{$yamaha{'Zone1Input'}}{'AudioDelay'} = $yamaha{'AudioDelay'};
+			}
+		}
 	} elsif ( /^debug\s+([0-9])/i ) {
 		$debug = $1;
 		return (!defined($client));
@@ -2788,9 +2845,17 @@ sub atoi
 	return $retVal;
 }
 
+sub boundval
+{
+	my ($val,$low,$high) = @_;
+	$val = $low if ( $val < $low );
+	$val = $high if ( $val > $high );
+	return $val;
+}
+
 sub itoa
 {
-	my $inNum = shift;
+	my ($inNum, $charCountOut) = @_;
 	my $retVal = "";
 	while ( $inNum > 0 )
 	{
@@ -2799,6 +2864,13 @@ sub itoa
 		if ( $char < 10 ) { $char += 0x30; }
 		else { $char += (0x41-10); }
 		$retVal = chr($char).$retVal;
+	}
+	if ( defined $charCountOut )
+	{
+		until ( $retVal =~ m/.{$charCountOut}/ )
+		{
+			$retVal = "0$retVal";
+		}
 	}
 	return $retVal;
 }
