@@ -96,7 +96,8 @@ window.iui =
 		{
 			req.open(method || "GET", href, true);
 			req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-			req.setRequestHeader("Content-Length", args.length);
+			// The following line removed in iui 0.40
+			// req.setRequestHeader("Content-Length", args.length);
 			req.send(args.join("&"));
 		}
 		else

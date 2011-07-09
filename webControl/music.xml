@@ -1,0 +1,36 @@
+<commands>
+  <command title="Radio Streams" class="header">
+    bye
+  </command>
+  <command title="Radio Heartland">
+    run radioheartland
+    bye
+  </command>
+  <command title="Classical MPR">
+    run radioclassical
+    bye
+  </command>
+  <command title="MPR News">
+    run radionews
+    bye
+  </command>
+  <command title="Big R Radio - 90s Alternative">
+    run radiorock
+    bye
+  </command>
+  <command title="Playlists" class="header">
+    bye
+  </command>
+  <command title="Wakeup">
+    osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+    osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+    play playlist "Wakeup"
+    bye
+  </command>
+  <command title="Knockout">
+    osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to false'
+    osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to true'
+    play playlist "Knockout"
+    bye
+  </command>
+</commands>

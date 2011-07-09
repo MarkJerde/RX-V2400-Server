@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<data>
+	<SystemPower><Value>Off</Value></SystemPower>
+	<Zone1Power><Value>Off</Value></Zone1Power>
+	<Zone1Volume><Value>-22.0</Value></Zone1Volume>
+	<Zone1Input><Value>DVD</Value></Zone1Input>
+	<Zone2Power><Value>Off</Value></Zone2Power>
+	<Zone2Volume><Value>-40.0</Value></Zone2Volume>
+	<Zone2Input><Value>DVD</Value></Zone2Input>
+	<Zone3Power><Value>Off</Value></Zone3Power>
+	<Zone3Volume><Value>-50.0</Value></Zone3Volume>
+	<Zone3Input><Value>DVD</Value></Zone3Input>
+</data>

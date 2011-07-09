@@ -1,0 +1,905 @@
+<commands>
+  <command title="Power On">
+    Control Operation Power ON
+    bye
+  </command>
+  <command title="Power Off">
+    Control Operation Power OFF
+    bye
+  </command>
+  <command title="====================== Zone 1 ======================">
+    bye
+  </command>
+  <command title="Zone 1 Power On">
+    Control Operation Zone1Power ON
+    bye
+  </command>
+  <command title="Zone 1 Power Off">
+    Control Operation Zone1Power OFF
+    bye
+  </command>
+  <command title="Zone 1 Input DVD">
+    Control Operation Zone1Input DVD
+    bye
+  </command>
+  <command title="Zone 1 Input TUNER">
+    Control Operation Zone1Input TUNER
+    bye
+  </command>
+  <command title="Zone 1 Input Bluetooth">
+    Control Operation Zone1Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 1 Volume Up">
+    Control Operation Zone1Volume Up
+    bye
+  </command>
+  <command title="Zone 1 Volume Down">
+    Control Operation Zone1Volume Down
+    bye
+  </command>
+  <command title="Zone 1 Mute On">
+    Control Operation Zone1Mute ON
+    bye
+  </command>
+  <command title="Zone 1 Mute Off">
+    Control Operation Zone1Mute OFF
+    bye
+  </command>
+  <command title="Zone 1 Delay Max">
+    Control System AudioDelay Set 240
+    bye
+  </command>
+  <command title="Zone 1 Delay +10">
+    Control System AudioDelay Adjust 10
+    bye
+  </command>
+  <command title="Zone 1 Delay Up">
+    Control System AudioDelay Up
+    bye
+  </command>
+  <command title="Zone 1 Delay Mid">
+    Control System AudioDelay Set 120
+    bye
+  </command>
+  <command title="Zone 1 Delay Down">
+    Control System AudioDelay Down
+    bye
+  </command>
+  <command title="Zone 1 Delay -10">
+    Control System AudioDelay Adjust -10
+    bye
+  </command>
+  <command title="Zone 1 Delay Zero">
+    Control System AudioDelay Set 0
+    bye
+  </command>
+  <command title="====================== Zone 2 ======================">
+    bye
+  </command>
+  <command title="Zone 2 Power On">
+    Control Operation Zone2Power ON
+    bye
+  </command>
+  <command title="Zone 2 Power Off">
+    Control Operation Zone2Power OFF
+    bye
+  </command>
+  <command title="Zone 2 Input DVD">
+    Control Operation Zone2Input DVD
+    bye
+  </command>
+  <command title="Zone 2 Input TUNER">
+    Control Operation Zone2Input TUNER
+    bye
+  </command>
+  <command title="Zone 2 Input Bluetooth">
+    Control Operation Zone2Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 2 Volume Up">
+    Control Operation Zone2Volume Up
+    bye
+  </command>
+  <command title="Zone 2 Volume Down">
+    Control Operation Zone2Volume Down
+    bye
+  </command>
+  <command title="====================== Macros ======================">
+    bye
+  </command>
+  <command title="Silence">
+    run silence
+    bye
+  </command>
+  <command title="Wakeup at 5:30">
+    at 5:30 do run wakeup
+    bye
+  </command>
+  <command title="Wakeup at 6:30">
+    at 6:30 do run wakeup
+    bye
+  </command>
+  <command title="Wakeup at 7:30">
+    at 7:30 do run wakeup
+    bye
+  </command>
+  <command title="Silence at 23:10">
+    at 23:10 do run silence
+    bye
+  </command>
+  <command title="status">
+    status
+    bye
+  </command>
+  <command title="schedule">
+    schedule
+    bye
+  </command>
+  <command title="====================== Others ======================">
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -45.0">
+    Control System Zone1Volume Set -45.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -44.5">
+    Control System Zone1Volume Set -44.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -44.0">
+    Control System Zone1Volume Set -44.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -43.5">
+    Control System Zone1Volume Set -43.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -43.0">
+    Control System Zone1Volume Set -43.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -42.5">
+    Control System Zone1Volume Set -42.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -42.0">
+    Control System Zone1Volume Set -42.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -41.5">
+    Control System Zone1Volume Set -41.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -41.0">
+    Control System Zone1Volume Set -41.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -40.5">
+    Control System Zone1Volume Set -40.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -40.0">
+    Control System Zone1Volume Set -40.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -39.5">
+    Control System Zone1Volume Set -39.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -39.0">
+    Control System Zone1Volume Set -39.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -38.5">
+    Control System Zone1Volume Set -38.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -38.0">
+    Control System Zone1Volume Set -38.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -37.5">
+    Control System Zone1Volume Set -37.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -37.0">
+    Control System Zone1Volume Set -37.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -36.5">
+    Control System Zone1Volume Set -36.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -36.0">
+    Control System Zone1Volume Set -36.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -35.5">
+    Control System Zone1Volume Set -35.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -35.0">
+    Control System Zone1Volume Set -35.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -34.5">
+    Control System Zone1Volume Set -34.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -34.0">
+    Control System Zone1Volume Set -34.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -33.5">
+    Control System Zone1Volume Set -33.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -33.0">
+    Control System Zone1Volume Set -33.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -32.5">
+    Control System Zone1Volume Set -32.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -32.0">
+    Control System Zone1Volume Set -32.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -31.5">
+    Control System Zone1Volume Set -31.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -31.0">
+    Control System Zone1Volume Set -31.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -30.5">
+    Control System Zone1Volume Set -30.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -30.0">
+    Control System Zone1Volume Set -30.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -29.5">
+    Control System Zone1Volume Set -29.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -29.0">
+    Control System Zone1Volume Set -29.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -28.5">
+    Control System Zone1Volume Set -28.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -28.0">
+    Control System Zone1Volume Set -28.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -27.5">
+    Control System Zone1Volume Set -27.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -27.0">
+    Control System Zone1Volume Set -27.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -26.5">
+    Control System Zone1Volume Set -26.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -26.0">
+    Control System Zone1Volume Set -26.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -25.5">
+    Control System Zone1Volume Set -25.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -25.0">
+    Control System Zone1Volume Set -25.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -24.5">
+    Control System Zone1Volume Set -24.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -24.0">
+    Control System Zone1Volume Set -24.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -23.5">
+    Control System Zone1Volume Set -23.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -23.0">
+    Control System Zone1Volume Set -23.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -22.5">
+    Control System Zone1Volume Set -22.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -22.0">
+    Control System Zone1Volume Set -22.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -21.5">
+    Control System Zone1Volume Set -21.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -21.0">
+    Control System Zone1Volume Set -21.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -20.5">
+    Control System Zone1Volume Set -20.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -20.0">
+    Control System Zone1Volume Set -20.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -19.5">
+    Control System Zone1Volume Set -19.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -19.0">
+    Control System Zone1Volume Set -19.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -18.5">
+    Control System Zone1Volume Set -18.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -18.0">
+    Control System Zone1Volume Set -18.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -17.5">
+    Control System Zone1Volume Set -17.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -17.0">
+    Control System Zone1Volume Set -17.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -16.5">
+    Control System Zone1Volume Set -16.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -16.0">
+    Control System Zone1Volume Set -16.0
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -15.5">
+    Control System Zone1Volume Set -15.5
+    bye
+  </command>
+  <command title="Control System Zone 1 Volume Set -15.0">
+    Control System Zone1Volume Set -15.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -45.0">
+    Control System Zone2Volume Set -45.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -44.5">
+    Control System Zone2Volume Set -44.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -44.0">
+    Control System Zone2Volume Set -44.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -43.5">
+    Control System Zone2Volume Set -43.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -43.0">
+    Control System Zone2Volume Set -43.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -42.5">
+    Control System Zone2Volume Set -42.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -42.0">
+    Control System Zone2Volume Set -42.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -41.5">
+    Control System Zone2Volume Set -41.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -41.0">
+    Control System Zone2Volume Set -41.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -40.5">
+    Control System Zone2Volume Set -40.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -40.0">
+    Control System Zone2Volume Set -40.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -39.5">
+    Control System Zone2Volume Set -39.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -39.0">
+    Control System Zone2Volume Set -39.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -38.5">
+    Control System Zone2Volume Set -38.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -38.0">
+    Control System Zone2Volume Set -38.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -37.5">
+    Control System Zone2Volume Set -37.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -37.0">
+    Control System Zone2Volume Set -37.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -36.5">
+    Control System Zone2Volume Set -36.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -36.0">
+    Control System Zone2Volume Set -36.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -35.5">
+    Control System Zone2Volume Set -35.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -35.0">
+    Control System Zone2Volume Set -35.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -34.5">
+    Control System Zone2Volume Set -34.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -34.0">
+    Control System Zone2Volume Set -34.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -33.5">
+    Control System Zone2Volume Set -33.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -33.0">
+    Control System Zone2Volume Set -33.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -32.5">
+    Control System Zone2Volume Set -32.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -32.0">
+    Control System Zone2Volume Set -32.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -31.5">
+    Control System Zone2Volume Set -31.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -31.0">
+    Control System Zone2Volume Set -31.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -30.5">
+    Control System Zone2Volume Set -30.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -30.0">
+    Control System Zone2Volume Set -30.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -29.5">
+    Control System Zone2Volume Set -29.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -29.0">
+    Control System Zone2Volume Set -29.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -28.5">
+    Control System Zone2Volume Set -28.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -28.0">
+    Control System Zone2Volume Set -28.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -27.5">
+    Control System Zone2Volume Set -27.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -27.0">
+    Control System Zone2Volume Set -27.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -26.5">
+    Control System Zone2Volume Set -26.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -26.0">
+    Control System Zone2Volume Set -26.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -25.5">
+    Control System Zone2Volume Set -25.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -25.0">
+    Control System Zone2Volume Set -25.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -24.5">
+    Control System Zone2Volume Set -24.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -24.0">
+    Control System Zone2Volume Set -24.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -23.5">
+    Control System Zone2Volume Set -23.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -23.0">
+    Control System Zone2Volume Set -23.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -22.5">
+    Control System Zone2Volume Set -22.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -22.0">
+    Control System Zone2Volume Set -22.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -21.5">
+    Control System Zone2Volume Set -21.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -21.0">
+    Control System Zone2Volume Set -21.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -20.5">
+    Control System Zone2Volume Set -20.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -20.0">
+    Control System Zone2Volume Set -20.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -19.5">
+    Control System Zone2Volume Set -19.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -19.0">
+    Control System Zone2Volume Set -19.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -18.5">
+    Control System Zone2Volume Set -18.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -18.0">
+    Control System Zone2Volume Set -18.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -17.5">
+    Control System Zone2Volume Set -17.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -17.0">
+    Control System Zone2Volume Set -17.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -16.5">
+    Control System Zone2Volume Set -16.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -16.0">
+    Control System Zone2Volume Set -16.0
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -15.5">
+    Control System Zone2Volume Set -15.5
+    bye
+  </command>
+  <command title="Control System Zone 2 Volume Set -15.0">
+    Control System Zone2Volume Set -15.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -45.0">
+    Control System Zone3Volume Set -45.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -44.5">
+    Control System Zone3Volume Set -44.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -44.0">
+    Control System Zone3Volume Set -44.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -43.5">
+    Control System Zone3Volume Set -43.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -43.0">
+    Control System Zone3Volume Set -43.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -42.5">
+    Control System Zone3Volume Set -42.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -42.0">
+    Control System Zone3Volume Set -42.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -41.5">
+    Control System Zone3Volume Set -41.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -41.0">
+    Control System Zone3Volume Set -41.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -40.5">
+    Control System Zone3Volume Set -40.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -40.0">
+    Control System Zone3Volume Set -40.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -39.5">
+    Control System Zone3Volume Set -39.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -39.0">
+    Control System Zone3Volume Set -39.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -38.5">
+    Control System Zone3Volume Set -38.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -38.0">
+    Control System Zone3Volume Set -38.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -37.5">
+    Control System Zone3Volume Set -37.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -37.0">
+    Control System Zone3Volume Set -37.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -36.5">
+    Control System Zone3Volume Set -36.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -36.0">
+    Control System Zone3Volume Set -36.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -35.5">
+    Control System Zone3Volume Set -35.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -35.0">
+    Control System Zone3Volume Set -35.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -34.5">
+    Control System Zone3Volume Set -34.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -34.0">
+    Control System Zone3Volume Set -34.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -33.5">
+    Control System Zone3Volume Set -33.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -33.0">
+    Control System Zone3Volume Set -33.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -32.5">
+    Control System Zone3Volume Set -32.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -32.0">
+    Control System Zone3Volume Set -32.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -31.5">
+    Control System Zone3Volume Set -31.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -31.0">
+    Control System Zone3Volume Set -31.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -30.5">
+    Control System Zone3Volume Set -30.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -30.0">
+    Control System Zone3Volume Set -30.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -29.5">
+    Control System Zone3Volume Set -29.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -29.0">
+    Control System Zone3Volume Set -29.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -28.5">
+    Control System Zone3Volume Set -28.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -28.0">
+    Control System Zone3Volume Set -28.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -27.5">
+    Control System Zone3Volume Set -27.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -27.0">
+    Control System Zone3Volume Set -27.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -26.5">
+    Control System Zone3Volume Set -26.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -26.0">
+    Control System Zone3Volume Set -26.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -25.5">
+    Control System Zone3Volume Set -25.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -25.0">
+    Control System Zone3Volume Set -25.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -24.5">
+    Control System Zone3Volume Set -24.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -24.0">
+    Control System Zone3Volume Set -24.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -23.5">
+    Control System Zone3Volume Set -23.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -23.0">
+    Control System Zone3Volume Set -23.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -22.5">
+    Control System Zone3Volume Set -22.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -22.0">
+    Control System Zone3Volume Set -22.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -21.5">
+    Control System Zone3Volume Set -21.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -21.0">
+    Control System Zone3Volume Set -21.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -20.5">
+    Control System Zone3Volume Set -20.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -20.0">
+    Control System Zone3Volume Set -20.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -19.5">
+    Control System Zone3Volume Set -19.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -19.0">
+    Control System Zone3Volume Set -19.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -18.5">
+    Control System Zone3Volume Set -18.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -18.0">
+    Control System Zone3Volume Set -18.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -17.5">
+    Control System Zone3Volume Set -17.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -17.0">
+    Control System Zone3Volume Set -17.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -16.5">
+    Control System Zone3Volume Set -16.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -16.0">
+    Control System Zone3Volume Set -16.0
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -15.5">
+    Control System Zone3Volume Set -15.5
+    bye
+  </command>
+  <command title="Control System Zone 3 Volume Set -15.0">
+    Control System Zone3Volume Set -15.0
+    bye
+  </command>
+  <command title="====================== Zone 3 ======================">
+    bye
+  </command>
+  <command title="Zone 3 Power On">
+    Control Operation Zone3Power ON
+    bye
+  </command>
+  <command title="Zone 3 Power Off">
+    Control Operation Zone3Power OFF
+    bye
+  </command>
+  <command title="Zone 3 Input DVD">
+    Control Operation Zone3Input DVD
+    bye
+  </command>
+  <command title="Zone 3 Input TUNER">
+    Control Operation Zone3Input TUNER
+    bye
+  </command>
+  <command title="Zone 3 Input Bluetooth">
+    Control Operation Zone3Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 3 Volume Up">
+    Control Operation Zone3Volume Up
+    bye
+  </command>
+  <command title="Zone 3 Volume Down">
+    Control Operation Zone3Volume Down
+    bye
+  </command>
+</commands>

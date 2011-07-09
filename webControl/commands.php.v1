@@ -1,0 +1,40 @@
+<?php
+class Commands
+{
+  private $_commands;
+
+  function __construct()
+  {
+    $this->_commands = array();
+
+    $doc = new DOMDocument();
+    $doc->load('commands.xml');
+    $cmds = $doc->getElementsByTagName( 'command' );
+    foreach( $cmds as $cmd )
+    {
+      $this->_commands []= array( 
+        'title' => $cmd->getAttribute('title'),
+        'command' => $cmd->firstChild->nodeValue
+      );
+    }
+  }
+
+  function getCommands()
+  {
+    $cmds = array();
+    foreach( $this->_commands as $cmd )
+    {
+      $cmds []= $cmd['title'];
+    }
+    return $cmds;
+  }
+
+  function runCommand( $id )
+  {
+    $ph = popen( "telnet localhost 8675", "w" );
+    fwrite( $ph, $this->_commands[$id]['command'] );
+    sleep(1);
+    fclose( $ph );
+  }
+}
+?>
