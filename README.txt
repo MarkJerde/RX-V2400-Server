@@ -1,6 +1,7 @@
 === Contents ===
 1. Introduction
 2. Documentation
+3. Enhancement
 ================
 
 === Introduction ===
@@ -43,4 +44,8 @@ Runs on Windows, Linux, and Mac OS.  No recent testing has been done on Windows 
 Roughly put.. you need to be able to run Perl programs, and you need a serial connection between your computer and the receiver.
 * rxv2400server.pl is the main program.
 * webControl contains the web elements, but you'll need a webserver with php support for this.
+
+=== Enhancement ===
+Yamaha has some pdf files floating around on the internet that document the serial control commands.  You'd need these to make it work with a different model.  First, because it might be good to make sure the command numbers are all the same; but more that the model ID is hard-coded in the code so it doesn't make a mess by sending incorrect instructions to a different model receiver.  There are two files per receiver, "standard" and "extended".  Neither is a subset of the other.  Here's one that I managed to track down to give you a start tracking down the others.
+http://www.yamahapab.com/assets/downloads/codes/RX-V2400_RS232C_Standard.pdf
 
