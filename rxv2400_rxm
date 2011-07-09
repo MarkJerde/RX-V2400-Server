@@ -1,0 +1,652 @@
+macro radioheartland
+# OS X format:
+play track "Radio Heartland from Minnesota Public Radio" of playlist "Radio"
+end
+
+macro radioclassical
+# OS X format:
+play track "Classical Minnesota Public Radio" of playlist "Radio"
+end
+
+macro radionews
+# OS X format:
+play track "Minnesota Public Radio News" of playlist "Radio"
+end
+
+macro radiorock
+# OS X format:
+play track "Big R Radio - 90s Alternative " of playlist "Radio"
+end
+
+macro radiooff
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+end
+
+macro wakeup
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -50
+sleep 15s # Give the receiver time to power on.
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+#Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Knockout
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to true'
+play playlist "Knockout"
+sleep 2m
+Control Operation Zone1Power ON
+Control System AudioDelay Set 0
+Control Operation Zone1Input VCR2/DVR
+Control System Zone1Volume Set -40
+# OS X format:
+play track "Folk Alley  (( All Folk.  All The Time.  ))" of playlist "Radio"
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 1h 30m
+Control Operation Power OFF
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+debug 0
+end
+
+macro wakeupheartland
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -50
+sleep 15s # Give the receiver time to power on.
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+#Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Knockout
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to true'
+play playlist "Knockout"
+sleep 2m
+Control Operation Zone1Power ON
+Control System AudioDelay Set 0
+Control Operation Zone1Input VCR2/DVR
+Control System Zone1Volume Set -40
+# OS X format:
+play track "Radio Heartland from Minnesota Public Radio" of playlist "Radio"
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 1h 30m
+Control Operation Power OFF
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+debug 0
+end
+
+macro wakeupnews
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -50
+sleep 15s # Give the receiver time to power on.
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+#Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Knockout
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to true'
+play playlist "Knockout"
+sleep 2m
+Control Operation Zone2Input TUNER
+Control Operation Zone1Power ON
+Control System AudioDelay Set 0
+Control Operation Zone1Input TUNER
+Control System Zone1Volume Set -40
+# Linux format
+# play nothing
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 6s
+Control System Zone2Volume Adjust -1
+sleep 1h 30m
+Control Operation Power OFF
+debug 0
+end
+
+macro wakeupz2
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -50
+sleep 15s # Give the receiver time to power on.
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+#Control Operation Zone3Power OFF
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 6s
+Control System Zone2Volume Adjust 1
+sleep 2m
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Knockout
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Knockout" to true'
+play playlist "Knockout"
+sleep 2m
+Control Operation Zone2Input TUNER
+sleep 1h 30m
+Control Operation Power OFF
+debug 0
+end
+
+macro silence
+#debug 1
+Control Operation Zone1Power ON
+Control Operation Zone1Input CD-R
+Control System Zone1Volume Set -50
+Control Operation Zone2Power ON
+Control Operation Zone2Input CD-R
+Control System Zone2Volume Set -50
+Control Operation Zone3Power ON
+Control Operation Zone3Input CD-R
+Control System Zone3Volume Set -50
+Control Operation Power OFF
+# Linux format
+# play nothing
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+debug 0
+end
+
+macro meditate
+#debug 1
+sleep 2m
+play f:\Documents and Settings\All Users\Documents\My Music\Upload\Loonwa.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.1.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.2.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.3.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.4.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+play f:\Documents and Settings\Dave\Desktop\meditate1.5.wav
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 10s
+Control System Zone2Volume Adjust -1
+sleep 3m 40s
+Control System Zone2Volume Adjust -4
+play f:\Documents and Settings\Dave\My Documents\My Music\Upload\Loonwa.wav
+debug 0
+end
+
+macro bedtime
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -40
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+sleep 45s
+Control System Zone2Volume Adjust -1
+Control Operation Power OFF
+# Linux format
+# play nothing
+# OS X format:
+osascript 'tell application "iTunes" to stop'
+debug 0
+end
+
+macro testtime
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+Control System Zone2Volume Set -40
+# Linux format:
+# play /mnt/jasper/Music/iTunes/iTunes\ Music\ Library.xml -playlist Wakeup
+# OS X format:
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to false'
+osascript 'tell application "iTunes" to set shuffle of playlist "Wakeup" to true'
+play playlist "Wakeup"
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+sleep 2s
+Control System Zone2Volume Adjust -1
+Control Operation Power OFF
+debug 0
+end
+
+macro t1
+#debug 1
+Control Operation Zone2Power ON
+Control Operation Zone2Input VCR2/DVR
+debug 0
+end
+
+macro t2
+#debug 1
+Control Operation Zone2Power ON
+debug 0
+end
+
+macro t3
+Control Operation Zone2Power ON
+end
+
