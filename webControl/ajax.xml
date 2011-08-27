@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <data>
-	<SystemPower><Value>Off</Value></SystemPower>
-	<Zone1Power><Value>Off</Value></Zone1Power>
-	<Zone1Volume><Value>-22.0</Value></Zone1Volume>
+	<SystemPower><Value>On</Value></SystemPower>
+	<Zone1Power><Value>On</Value></Zone1Power>
+	<Zone1Volume><Value>-19.5.0</Value></Zone1Volume>
 	<Zone1Input><Value>DVD</Value></Zone1Input>
 	<Zone2Power><Value>Off</Value></Zone2Power>
 	<Zone2Volume><Value>-40.0</Value></Zone2Volume>
@@ -10,4 +10,15 @@
 	<Zone3Power><Value>Off</Value></Zone3Power>
 	<Zone3Volume><Value>-50.0</Value></Zone3Volume>
 	<Zone3Input><Value>DVD</Value></Zone3Input>
+	<InputVaux><Value> V-AUX  </Value></InputVaux>
+	<InputDvrVcr2><Value>DVR/VCR2</Value></InputDvrVcr2>
+	<InputVcr1><Value>  VCR1  </Value></InputVcr1>
+	<InputCblSat><Value>  Wii   </Value></InputCblSat>
+	<InputDTV><Value>   TV   </Value></InputDTV>
+	<InputDVD><Value>FrontRow</Value></InputDVD>
+	<InputMdtape><Value>Bl.tooth</Value></InputMdtape>
+	<InputCDR><Value>  CD-R  </Value></InputCDR>
+	<InputCD><Value>   CD   </Value></InputCD>
+	<InputTuner><Value> TUNER  </Value></InputTuner>
+	<InputPhono><Value> PHONO  </Value></InputPhono>
 </data>

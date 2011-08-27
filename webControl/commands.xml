@@ -18,16 +18,48 @@
     Control Operation Zone1Power OFF
     bye
   </command>
+  <command title="Zone 1 Input V-AUX">
+    Control Operation Zone1Input V-AUX
+    bye
+  </command>
+  <command title="Zone 1 Input DVR/VCR2">
+    Control Operation Zone1Input VCR2/DVR
+    bye
+  </command>
+  <command title="Zone 1 Input VCR1">
+    Control Operation Zone1Input VCR1
+    bye
+  </command>
+  <command title="Zone 1 Input CBL/SAT">
+    Control Operation Zone1Input CABLE/SAT
+    bye
+  </command>
+  <command title="Zone 1 Input DTV">
+    Control Operation Zone1Input D-TV/LD
+    bye
+  </command>
   <command title="Zone 1 Input DVD">
     Control Operation Zone1Input DVD
+    bye
+  </command>
+  <command title="Zone 1 Input MD/TAPE">
+    Control Operation Zone1Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 1 Input CDR">
+    Control Operation Zone1Input CD-R
+    bye
+  </command>
+  <command title="Zone 1 Input CD">
+    Control Operation Zone1Input CD
     bye
   </command>
   <command title="Zone 1 Input TUNER">
     Control Operation Zone1Input TUNER
     bye
   </command>
-  <command title="Zone 1 Input Bluetooth">
-    Control Operation Zone1Input MD/TAPE
+  <command title="Zone 1 Input PHONO">
+    Control Operation Zone1Input PHONO
     bye
   </command>
   <command title="Zone 1 Volume Up">
@@ -85,16 +117,48 @@
     Control Operation Zone2Power OFF
     bye
   </command>
+  <command title="Zone 2 Input V-AUX">
+    Control Operation Zone2Input V-AUX
+    bye
+  </command>
+  <command title="Zone 2 Input DVR/VCR2">
+    Control Operation Zone2Input VCR2/DVR
+    bye
+  </command>
+  <command title="Zone 2 Input VCR1">
+    Control Operation Zone2Input VCR1
+    bye
+  </command>
+  <command title="Zone 2 Input CBL/SAT">
+    Control Operation Zone2Input CABLE/SAT
+    bye
+  </command>
+  <command title="Zone 2 Input DTV">
+    Control Operation Zone2Input D-TV/LD
+    bye
+  </command>
   <command title="Zone 2 Input DVD">
     Control Operation Zone2Input DVD
+    bye
+  </command>
+  <command title="Zone 2 Input MD/TAPE">
+    Control Operation Zone2Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 2 Input CDR">
+    Control Operation Zone2Input CD-R
+    bye
+  </command>
+  <command title="Zone 2 Input CD">
+    Control Operation Zone2Input CD
     bye
   </command>
   <command title="Zone 2 Input TUNER">
     Control Operation Zone2Input TUNER
     bye
   </command>
-  <command title="Zone 2 Input Bluetooth">
-    Control Operation Zone2Input MD/TAPE
+  <command title="Zone 2 Input PHONO">
+    Control Operation Zone2Input PHONO
     bye
   </command>
   <command title="Zone 2 Volume Up">
@@ -882,16 +946,48 @@
     Control Operation Zone3Power OFF
     bye
   </command>
+  <command title="Zone 3 Input V-AUX">
+    Control Operation Zone3Input V-AUX
+    bye
+  </command>
+  <command title="Zone 3 Input DVR/VCR2">
+    Control Operation Zone3Input VCR2/DVR
+    bye
+  </command>
+  <command title="Zone 3 Input VCR1">
+    Control Operation Zone3Input VCR1
+    bye
+  </command>
+  <command title="Zone 3 Input CBL/SAT">
+    Control Operation Zone3Input CABLE/SAT
+    bye
+  </command>
+  <command title="Zone 3 Input DTV">
+    Control Operation Zone3Input D-TV/LD
+    bye
+  </command>
   <command title="Zone 3 Input DVD">
     Control Operation Zone3Input DVD
+    bye
+  </command>
+  <command title="Zone 3 Input MD/TAPE">
+    Control Operation Zone3Input MD/TAPE
+    bye
+  </command>
+  <command title="Zone 3 Input CDR">
+    Control Operation Zone3Input CD-R
+    bye
+  </command>
+  <command title="Zone 3 Input CD">
+    Control Operation Zone3Input CD
     bye
   </command>
   <command title="Zone 3 Input TUNER">
     Control Operation Zone3Input TUNER
     bye
   </command>
-  <command title="Zone 3 Input Bluetooth">
-    Control Operation Zone3Input MD/TAPE
+  <command title="Zone 3 Input PHONO">
+    Control Operation Zone3Input PHONO
     bye
   </command>
   <command title="Zone 3 Volume Up">

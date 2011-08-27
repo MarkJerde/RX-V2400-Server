@@ -16,6 +16,61 @@ function ajaxpoll()
 		var val;
 		var elm;
 
+		val = xml.getElementsByTagName("InputVaux")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1vaux.firstChild.nodeValue = val;
+		document.all.zone2vaux.firstChild.nodeValue = val;
+		document.all.zone3vaux.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputDvrVcr2")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1dvrvcr2.firstChild.nodeValue = val;
+		document.all.zone2dvrvcr2.firstChild.nodeValue = val;
+		document.all.zone3dvrvcr2.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputVcr1")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1vcr1.firstChild.nodeValue = val;
+		document.all.zone2vcr1.firstChild.nodeValue = val;
+		document.all.zone3vcr1.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputCblSat")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1cblsat.firstChild.nodeValue = val;
+		document.all.zone2cblsat.firstChild.nodeValue = val;
+		document.all.zone3cblsat.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputDTV")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1dtv.firstChild.nodeValue = val;
+		document.all.zone2dtv.firstChild.nodeValue = val;
+		document.all.zone3dtv.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputDVD")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1dvd.firstChild.nodeValue = val;
+		document.all.zone2dvd.firstChild.nodeValue = val;
+		document.all.zone3dvd.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputMdtape")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1mdtape.firstChild.nodeValue = val;
+		document.all.zone2mdtape.firstChild.nodeValue = val;
+		document.all.zone3mdtape.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputCDR")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1cdr.firstChild.nodeValue = val;
+		document.all.zone2cdr.firstChild.nodeValue = val;
+		document.all.zone3cdr.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputCD")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1cd.firstChild.nodeValue = val;
+		document.all.zone2cd.firstChild.nodeValue = val;
+		document.all.zone3cd.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputTuner")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1tuner.firstChild.nodeValue = val;
+		document.all.zone2tuner.firstChild.nodeValue = val;
+		document.all.zone3tuner.firstChild.nodeValue = val;
+
+		val = xml.getElementsByTagName("InputPhono")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
+		document.all.zone1phono.firstChild.nodeValue = val;
+		document.all.zone2phono.firstChild.nodeValue = val;
+		document.all.zone3phono.firstChild.nodeValue = val;
+
 		val = xml.getElementsByTagName("SystemPower")[0].getElementsByTagName("Value")[0].firstChild.nodeValue;
 		elm = document.all.systemPower;
 		elm.setAttribute("toggled", "On" == val);

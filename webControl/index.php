@@ -110,13 +110,37 @@ function setZone<?php echo($zone);?>Volume(event)
         <h2>Input</h2>
         <fieldset>
             <div class="row">
-                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input DVD"));?>">DVD</a>
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input V-AUX"));?>" id="zone<?php echo($zone)?>vaux">V-AUX</a>
             </div>
             <div class="row">
-                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input TUNER"));?>">Tuner</a>
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input DVR/VCR2"));?>" id="zone<?php echo($zone)?>dvrvcr2">DVR/VCR2</a>
             </div>
             <div class="row">
-                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input Bluetooth"));?>">Bluetooth</a>
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input VCR1"));?>" id="zone<?php echo($zone)?>vcr1">VCR1</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input CBL/SAT"));?>" id="zone<?php echo($zone)?>cblsat">CBL/SAT</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input DTV"));?>" id="zone<?php echo($zone)?>dtv">DTV</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input DVD"));?>" id="zone<?php echo($zone)?>dvd">DVD</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input MD/TAPE"));?>" id="zone<?php echo($zone)?>mdtape">MD/TAPE</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input CDR"));?>" id="zone<?php echo($zone)?>cdr">CDR</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input CD"));?>" id="zone<?php echo($zone)?>cd">CD</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input TUNER"));?>" id="zone<?php echo($zone)?>tuner">TUNER</a>
+            </div>
+            <div class="row">
+                <a href="do.php?xml=commands.xml&id=<?php echo($cmds->commandTitleToId("Zone $zone Input PHONO"));?>" id="zone<?php echo($zone)?>phono">PHONO</a>
             </div>
         </fieldset>
     </form>
