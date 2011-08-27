@@ -650,7 +650,8 @@ my %Spec = (
 				           { lock \%yamaha; \$yamaha{'Power'} = \$rdat?1:0; }
 				           \$info .= setZ1Power((((\$rdat%7)%3)+1)>>1);
 				           \$info .= setZ2Power((6==\$rdat||4==\$rdat||3==\$rdat||1==\$rdat)?1:0);
-				           \$info .= setZ3Power(\$rdat&1);"
+				           \$info .= setZ3Power(\$rdat&1);
+				           preventDelayEcho();"
 			},
 			"21" => {
 				"Name" => "Zone1Input",
@@ -660,7 +661,8 @@ my %Spec = (
 				           if ( defined(\$settings{\$yamaha{'Zone1Input'}}{'AudioDelay'}) ) {
 				               decode('Control Operation AudioDelay Set '.
 				                      \$settings{\$yamaha{'Zone1Input'}}{'AudioDelay'},
-				                      (*STDOUT) ); }"
+				                      (*STDOUT) ); }
+				           preventDelayEcho();"
 			},
 #			"22" => { },
 			"23" => {
@@ -669,7 +671,8 @@ my %Spec = (
 			},
 			"24" => {
 				"Name" => "Zone2Input",
-				"Eval" => "\$yamaha{'Zone2Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];"
+				"Eval" => "\$yamaha{'Zone2Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];
+				           preventDelayEcho();"
 			},
 			"25" => {
 				"Name" => "Zone2Mute",
@@ -685,7 +688,13 @@ my %Spec = (
 				"Name" => "Audio Delay",
 				"Eval" => "\$yamaha{'AudioDelay'} = atoi(\$rdat);
 				           print('Audio Delay: '.\$yamaha{'AudioDelay'}.' ms\n');"
-			}
+			},
+			# ...,
+			"92" => {
+				"Name" => "Zone3Input",
+				"Eval" => "\$yamaha{'Zone3Input'} = \$Spec{\$yamaha{'ModelID'}}{'Configuration'}{'Input'}[atoi(\$rdat)];
+				           preventDelayEcho();"
+			},
 		}
 	}
 );
@@ -2926,6 +2935,33 @@ for (;;) # forever
 #close the port - when the server is shut down
 serialThread("destroy");
 
+
+my $savedDelay;
+sub preventDelayEcho
+{
+	# If Zone 1 is on and set to the same input as another zone that is on,
+	# save the delay value and set delay to zero.  Otherwise, if the saved
+	# delay is not undefined, restore it.
+
+	if ($yamaha{'Zone1Power'} eq 'ON'
+	    && ( ($yamaha{'Zone1Input'} eq $yamaha{'Zone2Input'} && $yamaha{'Zone2Power'} eq 'ON')
+	       ||($yamaha{'Zone1Input'} eq $yamaha{'Zone3Input'} && $yamaha{'Zone3Power'} eq 'ON') ) )
+	{
+		if (! defined $savedDelay)
+		{
+			# Only if we are newly in a saved-delay condition.
+			$savedDelay = $yamaha{'AudioDelay'};
+			decode('Control System AudioDelay Set 0');
+		}
+	} elsif ( defined $savedDelay ) {
+		if ( 0 == $yamaha{'AudioDelay'} )
+		{
+			# Only restore if the user hasn't changed the delay in the mean time.
+			decode("Control System AudioDelay Set $savedDelay");
+		}
+		undef $savedDelay;
+	}
+}
 
 sub setZ1Power
 {
