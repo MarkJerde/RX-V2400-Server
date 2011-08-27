@@ -402,35 +402,35 @@ my %Spec = (
 				"Zone1Volume" => { "Prefix" => "30" ,
 				                   "Eval" => "val" ,
 				                   "Up" => "\$yamaha{'Zone1Volume'}++;
-				                            itoa(\$yamaha{'Zone1Volume'});" ,
+				                            itoa(\$yamaha{'Zone1Volume'},2);" ,
 				                   "Down" => "\$yamaha{'Zone1Volume'}--;
-				                              itoa(\$yamaha{'Zone1Volume'});",
+				                              itoa(\$yamaha{'Zone1Volume'},2);",
 				                   "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
-				                                            itoa(\$yamaha{'Zone1Volume'});"},
+				                                            itoa(\$yamaha{'Zone1Volume'},2);"},
 				                   "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
-				                                         itoa(\$yamaha{'Zone1Volume'});"}
+				                                         itoa(\$yamaha{'Zone1Volume'},2);"}
 				},
 				"Zone2Volume" => { "Prefix" => "31" ,
 				                   "Eval" => "val" ,
 				                   "Up" => "\$yamaha{'Zone2Volume'}++;
-				                            itoa(\$yamaha{'Zone2Volume'});" ,
+				                            itoa(\$yamaha{'Zone2Volume'},2);" ,
 				                   "Down" => "\$yamaha{'Zone2Volume'}--;
-				                              itoa(\$yamaha{'Zone2Volume'});",
+				                              itoa(\$yamaha{'Zone2Volume'},2);",
 				                   "Adjust" => { "Eval" => "\$yamaha{'Zone2Volume'}+=(\$car*2);
-				                                            itoa(\$yamaha{'Zone2Volume'});"},
+				                                            itoa(\$yamaha{'Zone2Volume'},2);"},
 				                   "Set" => { "Eval" => "\$yamaha{'Zone2Volume'}=(\$car*2+199);
-				                                         itoa(\$yamaha{'Zone2Volume'});"}
+				                                         itoa(\$yamaha{'Zone2Volume'},2);"}
 				},
 				"Zone3Volume" => { "Prefix" => "34" ,
 				                   "Eval" => "val" ,
 				                   "Up" => "\$yamaha{'Zone3Volume'}++;
-				                            itoa(\$yamaha{'Zone3Volume'});" ,
+				                            itoa(\$yamaha{'Zone3Volume'},2);" ,
 				                   "Down" => "\$yamaha{'Zone3Volume'}--;
-				                              itoa(\$yamaha{'Zone3Volume'});",
+				                              itoa(\$yamaha{'Zone3Volume'},2);",
 				                   "Adjust" => { "Eval" => "\$yamaha{'Zone3Volume'}+=(\$car*2);
-				                                            itoa(\$yamaha{'Zone3Volume'});"},
+				                                            itoa(\$yamaha{'Zone3Volume'},2);"},
 				                   "Set" => { "Eval" => "\$yamaha{'Zone3Volume'}=(\$car*2+199);
-				                                         itoa(\$yamaha{'Zone3Volume'});"}
+				                                         itoa(\$yamaha{'Zone3Volume'},2);"}
 				},
 				#...,
 				# Spec says AudioDelay is 52, but RX-V2400 actually accepts this command and sends report on 53.
