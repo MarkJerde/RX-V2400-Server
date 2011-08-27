@@ -2230,7 +2230,7 @@ sub decode
 			print $client " Command syntax is based on the Yamaha I/O specifications.  Sorry\n";
 			print $client " Most commands are case-sensitive.\n";
 		} else {
-			print $client "\nCommands that being with \"$_\" have the following options:\n";
+			print $client "\nCommands that begin with \"$_\" have the following options:\n";
 		}
 		my $count = 0;
 		while ( "" ne $cdr )
