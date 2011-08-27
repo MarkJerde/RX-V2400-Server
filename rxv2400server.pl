@@ -420,7 +420,9 @@ my %Spec = (
 				                   "Adjust" => { "Eval" => "\$yamaha{'Zone1Volume'}+=(\$car*2);
 				                                            itoa(\$yamaha{'Zone1Volume'},2);"},
 				                   "Set" => { "Eval" => "\$yamaha{'Zone1Volume'}=(\$car*2+199);
-				                                         itoa(\$yamaha{'Zone1Volume'},2);"}
+				                                         itoa(\$yamaha{'Zone1Volume'},2);"},
+				                   "YCode" => { "Eval" => "\$yamaha{'Zone1Volume'}=\$car;
+				                                           itoa(\$yamaha{'Zone1Volume'},2);"}
 				},
 				"Zone2Volume" => { "Prefix" => "31" ,
 				                   "Eval" => "val" ,
@@ -1870,6 +1872,17 @@ sub writeStatusXML
 	<Zone3Power><Value>$z3p</Value></Zone3Power>
 	<Zone3Volume><Value>$z3v</Value></Zone3Volume>
 	<Zone3Input><Value>DVD</Value></Zone3Input>
+	<InputVaux><Value>$yamaha{"V-AUX Custom Text"}</Value></InputVaux>
+	<InputDvrVcr2><Value>$yamaha{"VCR2/DVR Custom Text"}</Value></InputDvrVcr2>
+	<InputVcr1><Value>$yamaha{"VCR1 Custom Text"}</Value></InputVcr1>
+	<InputCblSat><Value>$yamaha{"CABLE/SAT Custom Text"}</Value></InputCblSat>
+	<InputDTV><Value>$yamaha{"D-TV/LD Custom Text"}</Value></InputDTV>
+	<InputDVD><Value>$yamaha{"DVD Custom Text"}</Value></InputDVD>
+	<InputMdtape><Value>$yamaha{"MD/TAPE Custom Text"}</Value></InputMdtape>
+	<InputCDR><Value>$yamaha{"CD-R Custom Text"}</Value></InputCDR>
+	<InputCD><Value>$yamaha{"CD Custom Text"}</Value></InputCD>
+	<InputTuner><Value>$yamaha{"TUNER Custom Text"}</Value></InputTuner>
+	<InputPhono><Value>$yamaha{"PHONO Custom Text"}</Value></InputPhono>
 </data>|;
 		close(XML);
 	}
@@ -2350,7 +2363,7 @@ sub decode
 				my $options = 0;
 				for my $key ( keys %{$source->{$car}} )
 				{
-					if ( "Prefix" ne $key && "Suffix" ne $key && "Eval" ne $key && "Expect" ne $key )
+					if ( "Prefix" ne $key && "Suffix" ne $key && "Eval" ne $key && "Expect" ne $key && "YCode" ne $key )
 					{
 						$options++;
 						print $client "  ".$key;
@@ -2808,6 +2821,56 @@ while ( $numServersToRun )
 	$numServersToRun--;
 	$child->detach();
 }
+
+async {
+	# There is no other way to read the customizable input text names than
+	# to set each input and query the input text.
+
+	# Save the existing settings so we can restore it.
+	# Set the volume to minimum so an unexpected input doesn't damage the
+	# speakers or amp.  Mute is reset when the input changes so that is
+	# not an option.
+	my $saveZone1Input;
+	my $saveZone1Volume;
+	until ( defined($yamaha{'Zone1Input'}) ) { sleep 1; }
+	until ( defined($yamaha{'Zone1Volume'}) ) { sleep 1; }
+
+	foreach my $input ( "V-AUX", "VCR2/DVR", "VCR1", "CABLE/SAT", "D-TV/LD", "DVD", "MD/TAPE", "CD-R", "CD", "TUNER", "PHONO" )
+	{
+		# Place an invalid (overly long) name in the config variable
+		# so we can watch for the response to our query.
+		{
+			dbglogprint ' lock %yamaha;'."\n";
+			lock %yamaha;
+			dbglogprint " locked yamaha\n";
+			$saveZone1Input = $yamaha{'Zone1Input'} unless defined $saveZone1Input;
+			$saveZone1Volume = $yamaha{'Zone1Volume'} unless defined $saveZone1Volume;
+			$yamaha{"InputNameText"} = "Unavailable";
+			dbglogprint " unlocked yamaha\n";
+		}
+		decode("Control System Zone1Volume YCode 0");
+		decode("Control Operation Zone1Input $input");
+		decode("Control System TextRequest InputName");
+		while ( "Unavailable" eq $yamaha{"InputNameText"} )
+		{
+			sleep 1;
+		}
+		{
+			dbglogprint ' lock %yamaha;'."\n";
+			lock %yamaha;
+			dbglogprint " locked yamaha\n";
+			$yamaha{"$input Custom Text"} = $yamaha{"InputNameText"};
+			dbglogprint " unlocked yamaha\n";
+		}
+	}
+
+	# Restore original settings.
+	decode("Control Operation Zone1Input $saveZone1Input");
+	decode("Control System Zone1Volume YCode $saveZone1Volume");
+
+	# Update the status XML file.
+	writeStatusXML();
+};
 
 for (;;) # forever
 {
