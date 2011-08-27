@@ -251,6 +251,8 @@ our $stopNetworkServers : shared;
 $stopNetworkServers = 0;
 our $runningNetworkServers : shared;
 $runningNetworkServers = 0;
+our $expectZ3textResponse : shared;
+$expectZ3textResponse = 0;
 
 our $debug : shared;
 $debug = 0;
@@ -399,6 +401,16 @@ my %Spec = (
 			},
 			"System" => {
 				"Prefix" => "2",
+				"TextRequest" => { "Prefix" => "20" ,
+				                   "Eval" => "val" ,
+				                   "TuningFrequency" => "'00'",
+				                   "MainVolume"      => "'01'",
+				                   "Zone2Volume"     => "'02'",
+				                   "InputName"       => "'03'",
+				                   "Zone2InputName"  => "'04'",
+				                   "Zone3Volume"     => "lock \$expectZ3textResponse; \$expectZ3textResponse++; '05'", # Spec says Z2.  Returns on type 2.
+				                   "Zone3InputName"  => "lock \$expectZ3textResponse; \$expectZ3textResponse++; '06'"  # Spec says Z2.  Returns on type 4.
+				},
 				"Zone1Volume" => { "Prefix" => "30" ,
 				                   "Eval" => "val" ,
 				                   "Up" => "\$yamaha{'Zone1Volume'}++;
@@ -1186,7 +1198,11 @@ sub readData
 
 	if ( $count_read )
 	{
-		if ( $string_read =~ m/$DC2/ )
+		if ( $string_read =~ m/$DC1/ )
+		{
+			return 1 + readTextResponse();
+		}
+		elsif ( $string_read =~ m/$DC2/ )
 		{
 			return 1 + readConfiguration();
 		}
@@ -1227,6 +1243,88 @@ sub readReport
 	$data = processReport($data);
 
 	return $count_read - 1;
+}
+
+sub readTextResponse
+{
+	my $bytes_read = 0;
+	my $error = 0;
+	my $element = "";
+
+	my ($count_in, $type) = rs232_read(2);
+	$bytes_read += $count_in;
+	my ($count_text, $text) = rs232_read(8);
+	$bytes_read += $count_text;
+	my ($count_end, $end) = rs232_read(1);
+	$bytes_read += $count_end;
+	logprint "Received text type $type...\n";
+	if ( $end ne $ETX )
+	{
+		logprint "Error: ETX not found.\n";
+		$error = 1;
+	}
+	# The spec is pretty far off for the text response types.
+	elsif ( "00" eq $type )
+	{
+		logprint "Tunining Frequency: $text\n";
+		$element = "TuningFrequencyText";
+	}
+	elsif ( "01" eq $type )
+	{
+		logprint "Main Volume: $text\n";
+		$element = "MainVolumeText";
+	}
+	elsif ( "02" eq $type )
+	{
+		$element = "Zone";
+		lock $expectZ3textResponse; 
+		unless ( $expectZ3textResponse )
+		{
+			$element .= "2";
+			logprint "Zone 2 Volume: $text\n";
+		} else {
+			$element .= "3";
+			logprint "Zone 3 Volume: $text\n";
+			$expectZ3textResponse--;
+		}
+		$element .= "VolumeText";
+	}
+	elsif ( "03" eq $type )
+	{
+		$element = "InputNameText";
+		logprint "Input Name: $text\n";
+	}
+	elsif ( "04" eq $type )
+	{
+		$element = "Zone";
+		lock $expectZ3textResponse; 
+		unless ( $expectZ3textResponse )
+		{
+			$element .= "2";
+			logprint "Zone 2 Input Name: $text\n";
+		} else {
+			$element .= "3";
+			logprint "Zone 3 Input Name: $text\n";
+			$expectZ3textResponse--;
+		}
+		$element .= "VolumeText";
+	}
+	else
+	{
+		logprint "Unrecognized Type: $text\n";
+		$error = 1;
+	}
+
+	unless ( $error )
+	{
+		dbglogprint ' lock %yamaha;'."\n";
+		lock %yamaha;
+		dbglogprint " locked yamaha\n";
+		$yamaha{$element} = $text;
+		dbglogprint " unlocked yamaha\n";
+	}
+
+	return $bytes_read;
 }
 
 sub readConfiguration
